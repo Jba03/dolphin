@@ -1,9 +1,13 @@
 // Copyright 2023 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <imgui.h>
+
 #include "VideoCommon/Present.h"
 
 #include "Common/ChunkFile.h"
+#include "Common/Config/Config.h"
+#include "Common/ExternalTool.h"
 #include "Core/HW/VideoInterface.h"
 #include "Core/Host.h"
 #include "Core/System.h"
@@ -21,6 +25,7 @@
 #include "VideoCommon/VideoEvents.h"
 #include "VideoCommon/Widescreen.h"
 
+extern ImGuiContext* GImGui;
 std::unique_ptr<VideoCommon::Presenter> g_presenter;
 
 namespace VideoCommon
@@ -98,6 +103,29 @@ void Presenter::ViSwap(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height,
 {
   bool is_duplicate = FetchXFB(xfb_addr, fb_width, fb_stride, fb_height, ticks);
 
+  static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
+  //payload.texture = g_texture_cache->GetXFBTexture(xfb_addr, fb_width, fb_height, fb_stride, &m_xfb_rect).get();
+  payload.ctx = GImGui;
+  payload.disable_drawing = false;
+    
+  for (Common::ExternalTool* tool : Common::external_tools)
+  {
+    // printf("on update!\n");
+    struct Common::ExternalTool::Message message;
+    message.type = EXTERN_MESSAGE_ON_UPDATE;
+    message.data = nullptr;
+    tool->Message(message);
+  }
+    
+  for (Common::ExternalTool* tool : Common::external_tools)
+  {
+    //printf("on video!\n");
+    struct Common::ExternalTool::Message message;
+    message.type = EXTERN_MESSAGE_ON_VIDEO;
+    message.data = &payload;
+    tool->Message(message);
+  }
+    
   PresentInfo present_info;
   present_info.emulated_timestamp = ticks;
   present_info.present_count = m_present_count++;

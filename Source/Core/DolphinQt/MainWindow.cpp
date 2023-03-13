@@ -33,6 +33,8 @@
 #include <qpa/qplatformnativeinterface.h>
 #endif
 
+#include "Common/ExternalTool.h"
+#include "Common/FileSearch.h"
 #include "Common/ScopeGuard.h"
 #include "Common/Version.h"
 #include "Common/WindowSystemInfo.h"
@@ -1073,6 +1075,28 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
     ModalMessageBox::critical(this, tr("Error"), tr("Failed to init core"), QMessageBox::Ok);
     HideRenderWidget();
     return;
+  }
+    
+  std::string libraries_dir = Config::Get(Config::MAIN_EXTERNAL_TOOLS_PATH);
+  
+#if defined(_WIN32)
+  std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".dll"});
+#elif defined(__APPLE__)
+  std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".dylib"});
+#else
+  std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".so"});
+#endif
+      
+  if (files.size() > 0)
+  {
+    for (u32 i = 0; i < files.size(); i++)
+    {
+      std::string filepath = files[i];
+      std::string filename = filepath.substr(filepath.find_last_of("/") + 1);
+        
+      Common::ExternalTool* tool = Common::LoadExternalTool(filepath.c_str());
+      tool->Launch();
+    }
   }
 
 #ifdef USE_DISCORD_PRESENCE
