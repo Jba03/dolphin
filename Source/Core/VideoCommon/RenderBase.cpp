@@ -28,6 +28,7 @@
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
 #include "Common/Config/Config.h"
+#include "Common/ExternalTool.h"
 #include "Common/FileUtil.h"
 #include "Common/Flag.h"
 #include "Common/Image.h"
@@ -89,6 +90,7 @@
 #include "VideoCommon/VideoConfig.h"
 #include "VideoCommon/XFMemory.h"
 
+extern ImGuiContext* GImGui;
 std::unique_ptr<Renderer> g_renderer;
 
 static float AspectToWidescreen(float aspect)
@@ -1403,6 +1405,29 @@ void Renderer::Swap(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u6
       // with the loader, and it has not been unmapped yet. Force a pipeline flush to avoid this.
       g_vertex_manager->Flush();
 
+        static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
+        //payload.texture = g_texture_cache->GetXFBTexture(xfb_addr, fb_width, fb_height, fb_stride, &m_xfb_rect).get();
+        payload.ctx = GImGui;
+        payload.disable_drawing = false;
+        
+        for (Common::ExternalTool* tool : Common::external_tools)
+        {
+          // printf("on update!\n");
+          struct Common::ExternalTool::Message message;
+          message.type = EXTERN_MESSAGE_ON_UPDATE;
+          message.data = nullptr;
+          tool->Message(message);
+        }
+            
+        for (Common::ExternalTool* tool : Common::external_tools)
+        {
+          //printf("on video!\n");
+          struct Common::ExternalTool::Message message;
+          message.type = EXTERN_MESSAGE_ON_VIDEO;
+          message.data = &payload;
+          tool->Message(message);
+        }
+        
       // Render any UI elements to the draw list.
       {
         auto lock = GetImGuiLock();
@@ -1429,7 +1454,7 @@ void Renderer::Swap(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u6
         AdjustRectanglesToFitBounds(&render_target_rc, &render_source_rc, m_backbuffer_width,
                                     m_backbuffer_height);
         RenderXFBToScreen(render_target_rc, xfb_entry->texture.get(), render_source_rc);
-
+          
         DrawImGui();
 
         // Present to the window system.
