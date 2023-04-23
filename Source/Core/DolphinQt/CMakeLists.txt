@@ -15,7 +15,7 @@ set(CMAKE_AUTOMOC ON)
 
 # For some reason the method in Qt6 documentation is not working (at least on ubuntu jammy)
 # When Qt5 and Qt6 are given in same NAMES entry, only Qt5 is ever found.
-find_package(QT NAMES Qt6 COMPONENTS Core Gui Widgets)
+find_package(QT NAMES Qt5 COMPONENTS Core Gui Widgets)
 if(NOT QT_DIR)
   find_package(QT NAMES Qt5 COMPONENTS Core Gui Widgets)
 endif()
