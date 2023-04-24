@@ -20,6 +20,7 @@
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
 #include "Common/Event.h"
+#include "Common/ExternalTool.h"
 #include "Common/FileUtil.h"
 #include "Common/IOFile.h"
 #include "Common/MsgHandler.h"
@@ -752,11 +753,29 @@ static std::string MakeStateFilename(int number)
 void Save(int slot, bool wait)
 {
   SaveAs(MakeStateFilename(slot), wait);
+    
+  static int sslot = slot;
+  for (Common::ExternalTool* tool : Common::external_tools)
+  {
+    struct Common::ExternalTool::Message message;
+    message.type = EXTERN_MESSAGE_ON_SAVESTATE;
+    message.data = reinterpret_cast<void*>(&sslot);
+    tool->Message(message);
+  }
 }
 
 void Load(int slot)
 {
   LoadAs(MakeStateFilename(slot));
+    
+  static int sslot = slot;
+  for (Common::ExternalTool* tool : Common::external_tools)
+  {
+    struct Common::ExternalTool::Message message;
+    message.type = EXTERN_MESSAGE_ON_LOADSTATE;
+    message.data = reinterpret_cast<void*>(&sslot);
+    tool->Message(message);
+  }
 }
 
 void LoadLastSaved(int i)
