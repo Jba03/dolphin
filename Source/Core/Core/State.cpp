@@ -754,12 +754,12 @@ void Save(int slot, bool wait)
 {
   SaveAs(MakeStateFilename(slot), wait);
     
-  static int sslot = slot;
+  //static int sslot = slot;
   for (Common::ExternalTool* tool : Common::external_tools)
   {
     struct Common::ExternalTool::Message message;
     message.type = EXTERN_MESSAGE_ON_SAVESTATE;
-    message.data = reinterpret_cast<void*>(&sslot);
+    message.data = reinterpret_cast<void*>(&slot);
     tool->Message(message);
   }
 }
@@ -768,12 +768,12 @@ void Load(int slot)
 {
   LoadAs(MakeStateFilename(slot));
     
-  static int sslot = slot;
+  //static int sslot = slot;
   for (Common::ExternalTool* tool : Common::external_tools)
   {
     struct Common::ExternalTool::Message message;
     message.type = EXTERN_MESSAGE_ON_LOADSTATE;
-    message.data = reinterpret_cast<void*>(&sslot);
+    message.data = reinterpret_cast<void*>(&slot);
     tool->Message(message);
   }
 }
