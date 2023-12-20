@@ -125,10 +125,8 @@ ESDevice::ESDevice(EmulationKernel& ios, ESCore& core, const std::string& device
 
 ESDevice::~ESDevice() = default;
 
-void ESDevice::InitializeEmulationState()
+void ESDevice::InitializeEmulationState(CoreTiming::CoreTimingManager& core_timing)
 {
-  auto& system = Core::System::GetInstance();
-  auto& core_timing = system.GetCoreTiming();
   s_finish_init_event =
       core_timing.RegisterEvent("IOS-ESFinishInit", [](Core::System& system_, u64, s64) {
         GetIOS()->GetESDevice()->FinishInit();
@@ -374,7 +372,7 @@ bool ESDevice::LaunchIOS(u64 ios_title_id, HangPPC hang_ppc)
     const ES::TicketReader ticket = m_core.FindSignedTicket(ios_title_id);
     ES::Content content;
     if (!tmd.IsValid() || !ticket.IsValid() || !tmd.GetContent(tmd.GetBootIndex(), &content) ||
-        !GetEmulationKernel().BootIOS(GetSystem(), ios_title_id, hang_ppc,
+        !GetEmulationKernel().BootIOS(ios_title_id, hang_ppc,
                                       m_core.GetContentPath(ios_title_id, content)))
     {
       PanicAlertFmtT("Could not launch IOS {0:016x} because it is missing from the NAND.\n"
@@ -385,7 +383,7 @@ bool ESDevice::LaunchIOS(u64 ios_title_id, HangPPC hang_ppc)
     return true;
   }
 
-  return GetEmulationKernel().BootIOS(GetSystem(), ios_title_id, hang_ppc);
+  return GetEmulationKernel().BootIOS(ios_title_id, hang_ppc);
 }
 
 s32 ESDevice::WriteLaunchFile(const ES::TMDReader& tmd, Ticks ticks)
@@ -490,8 +488,7 @@ bool ESDevice::LaunchPPCTitle(u64 title_id)
 
 bool ESDevice::BootstrapPPC()
 {
-  const bool result =
-      GetEmulationKernel().BootstrapPPC(GetSystem(), m_pending_ppc_boot_content_path);
+  const bool result = GetEmulationKernel().BootstrapPPC(m_pending_ppc_boot_content_path);
   m_pending_ppc_boot_content_path = {};
   return result;
 }
