@@ -1,0 +1,14 @@
+name: Master sync
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  sync-master:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          git remote add upstream https://github.com/dolphin-emu/dolphin.git
+          git fetch upstream
+          git checkout master
+          git merge upstream/master
