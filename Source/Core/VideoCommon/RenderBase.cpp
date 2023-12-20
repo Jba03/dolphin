@@ -20,7 +20,9 @@
 
 #include <fmt/format.h>
 
+#include "Common/ExternalTool.h"
 #include "Common/Logging/Log.h"
+
 #include "Common/MsgHandler.h"
 
 #include "Core/ConfigManager.h"
@@ -32,6 +34,10 @@
 #include "VideoCommon/VideoCommon.h"
 #include "VideoCommon/VideoConfig.h"
 
+//#include <imgui.h>
+//#include <implot.h>
+//
+///extern ImGuiContext* GImGui;
 std::unique_ptr<Renderer> g_renderer;
 
 Renderer::~Renderer() = default;

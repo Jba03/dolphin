@@ -301,8 +301,8 @@ const Info<std::string> MAIN_WIRELESS_MAC{{System::Main, "General", "WirelessMac
 const Info<std::string> MAIN_GDB_SOCKET{{System::Main, "General", "GDBSocket"}, ""};
 const Info<int> MAIN_GDB_PORT{{System::Main, "General", "GDBPort"}, -1};
 const Info<int> MAIN_ISO_PATH_COUNT{{System::Main, "General", "ISOPaths"}, 0};
-const Info<std::string> MAIN_SKYLANDERS_PATH{{System::Main, "General", "SkylandersCollectionPath"},
-                                             ""};
+const Info<std::string> MAIN_SKYLANDERS_PATH{{System::Main, "General", "SkylandersCollectionPath"}, ""};
+const Info<std::string> MAIN_EXTERNAL_TOOLS_PATH{{System::Main, "General", "ExternalToolsPath"}, ""};
 
 static Info<std::string> MakeISOPathConfigInfo(size_t idx)
 {

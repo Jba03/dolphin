@@ -9,6 +9,7 @@
 
 #include "Common/CommonTypes.h"
 #include "Common/Config/Config.h"
+#include "Common/ExternalTool.h"
 
 #include "Core/Config/MainSettings.h"
 #include "Core/ConfigManager.h"
@@ -28,7 +29,7 @@ namespace HLE
 static std::map<u32, u32> s_hooked_addresses;
 
 // clang-format off
-constexpr std::array<Hook, 23> os_patches{{
+std::vector<Hook> os_patches{{
     // Placeholder, os_patches[0] is the "non-existent function" index
     {"FAKE_TO_SKIP_0",               HLE_Misc::UnimplementedFunction,       HookType::Replace, HookFlag::Generic},
 
@@ -64,6 +65,20 @@ constexpr std::array<Hook, 23> os_patches{{
 }};
 // clang-format on
 
+    void CreateHook(uint32_t address, const char *name, HLE::HookType type, HLE::HookFlag flags, void (*function)())
+    {
+        Hook hook;
+        memset(hook.name, 0, sizeof hook.name);
+        memcpy(hook.name, name, strlen(name));
+        hook.type = type;
+        hook.flags = flags;
+        hook.function = (HookFunction)function;
+        os_patches.push_back(hook);
+        
+        auto& system = Core::System::GetInstance();
+        Patch(system, address, name);
+    }
+    
 void Patch(Core::System& system, u32 addr, std::string_view func_name)
 {
   auto& ppc_state = system.GetPPCState();
@@ -139,6 +154,14 @@ void PatchFunctions(Core::System& system)
       INFO_LOG_FMT(OSHLE, "Patching {} {:08x}", os_patches[i].name, symbol->address);
     }
   }
+    
+    for (Common::ExternalTool* tool : Common::external_tools)
+    {
+        struct Common::ExternalTool::Message msg;
+        msg.type = mhash("hle-hook");
+        msg.data = reinterpret_cast<void*>(&CreateHook);
+      tool->Message(msg);
+    }
 }
 
 void Clear()

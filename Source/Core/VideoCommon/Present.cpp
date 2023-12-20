@@ -3,7 +3,10 @@
 
 #include "VideoCommon/Present.h"
 
+#include "Common/ExternalTool.h"
 #include "Common/ChunkFile.h"
+
+#include "Core/ConfigManager.h"
 #include "Core/Config/GraphicsSettings.h"
 #include "Core/HW/VideoInterface.h"
 #include "Core/Host.h"
@@ -23,6 +26,10 @@
 #include "VideoCommon/VideoEvents.h"
 #include "VideoCommon/Widescreen.h"
 
+#include <imgui.h>
+#include <implot.h>
+
+extern ImGuiContext* GImGui;
 std::unique_ptr<VideoCommon::Presenter> g_presenter;
 
 // The video encoder needs the image to be a multiple of x samples.
@@ -706,6 +713,29 @@ void Presenter::Present()
   // with the loader, and it has not been unmapped yet. Force a pipeline flush to avoid this.
   g_vertex_manager->Flush();
 
+    static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
+    //payload.texture = g_texture_cache->GetXFBTexture(xfb_addr, fb_width, fb_height, fb_stride, &m_xfb_rect).get();
+    payload.ctx = GImGui;
+    payload.disable_drawing = false;
+    
+    for (Common::ExternalTool* tool : Common::external_tools)
+    {
+      // printf("on update!\n");
+      struct Common::ExternalTool::Message message;
+      message.type = mhash("update");
+      message.data = nullptr;
+      tool->Message(message);
+    }
+        
+    for (Common::ExternalTool* tool : Common::external_tools)
+    {
+      //printf("on video!\n");
+      struct Common::ExternalTool::Message message;
+      message.type = mhash("video");
+      message.data = &payload;
+      tool->Message(message);
+    }
+    
   UpdateDrawRectangle();
 
   g_gfx->BeginUtilityDrawing();

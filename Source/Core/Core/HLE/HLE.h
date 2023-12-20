@@ -47,6 +47,7 @@ struct TryReplaceFunctionResult
   explicit operator bool() const { return type != HookType::None; }
 };
 
+zvoid CreateHook(uint32_t address, const char *name, HLE::HookType type, HLE::HookFlag flags, void (*function)());
 void PatchFixedFunctions(Core::System& system);
 void PatchFunctions(Core::System& system);
 void Clear();

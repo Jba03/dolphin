@@ -64,7 +64,7 @@ DEFAULT_CONFIG = {
 
     # Minimum macOS version for each architecture slice
     "arm64_mac_os_deployment_target":  "11.0.0",
-    "x86_64_mac_os_deployment_target": "10.15.0",
+    "x86_64_mac_os_deployment_target": "10.14.0",
 
     # CMake Generator to use for building
     "generator": "Unix Makefiles",
@@ -88,7 +88,7 @@ DEFAULT_CONFIG = {
 # 2) Single architecture builds should utilize the normal generated cmake
 #    project files rather than this wrapper script
 
-ARCHITECTURES = ["x86_64", "arm64"]
+ARCHITECTURES = ["arm64"]
 
 
 def parse_args(conf=DEFAULT_CONFIG):

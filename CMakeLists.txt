@@ -70,7 +70,7 @@ endif()
 # Name of the Dolphin distributor. If you redistribute Dolphin builds (forks,
 # unofficial builds) please consider identifying your distribution with a
 # unique name here.
-set(DISTRIBUTOR "None" CACHE STRING "Name of the distributor.")
+set(DISTRIBUTOR "dolphin-dll" CACHE STRING "Name of the distributor.")
 
 set(DOLPHIN_DEFAULT_UPDATE_TRACK "" CACHE STRING "Name of the default update track. If empty, disables auto-update.")
 
@@ -319,6 +319,7 @@ else()
 
   check_and_add_flag(VISIBILITY_INLINES_HIDDEN -fvisibility-inlines-hidden)
   check_and_add_flag(VISIBILITY_HIDDEN -fvisibility=hidden)
+  check_and_add_flag(MAX_BRACKET_NESTING_DEPTH -fbracket-depth=1024)
 
   check_and_add_flag(FOMIT_FRAME_POINTER -fomit-frame-pointer NO_DEBINFO_ONLY)
 
