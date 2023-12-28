@@ -714,7 +714,8 @@ void Presenter::Present()
   g_vertex_manager->Flush();
 
     static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
-    //payload.texture = g_texture_cache->GetXFBTexture(xfb_addr, fb_width, fb_height, fb_stride, &m_xfb_rect).get();
+    //g_texture_cache->GetXFBTexture(xfb, <#u32 width#>, <#u32 height#>, <#u32 stride#>, <#MathUtil::Rectangle<int> *display_rect#>)
+    payload.texture = m_xfb_entry ? m_xfb_entry->texture.get() : NULL;
     payload.ctx = GImGui;
     payload.disable_drawing = false;
     
