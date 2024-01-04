@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
+          ls -a
           git remote add upstream https://github.com/dolphin-emu/dolphin.git
           git fetch upstream
           git checkout master
