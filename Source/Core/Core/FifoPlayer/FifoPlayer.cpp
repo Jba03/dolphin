@@ -172,7 +172,7 @@ void FifoPlaybackAnalyzer::OnCommand(const u8* data, u32 size)
 
 bool IsPlayingBackFifologWithBrokenEFBCopies = false;
 
-FifoPlayer::FifoPlayer()
+FifoPlayer::FifoPlayer(Core::System& system) : m_system(system)
 {
   m_config_changed_callback_id = Config::AddConfigChangedCallback([this] { RefreshConfig(); });
   RefreshConfig();
@@ -401,17 +401,12 @@ void FifoPlayer::SetFrameRangeEnd(u32 end)
   }
 }
 
-FifoPlayer& FifoPlayer::GetInstance()
-{
-  static FifoPlayer instance;
-  return instance;
-}
-
 void FifoPlayer::WriteFrame(const FifoFrameInfo& frame, const AnalyzedFrameInfo& info)
 {
   // Core timing information
-  auto& vi = Core::System::GetInstance().GetVideoInterface();
-  m_CyclesPerFrame = static_cast<u64>(SystemTimers::GetTicksPerSecond()) *
+  auto& system = Core::System::GetInstance();
+  auto& vi = system.GetVideoInterface();
+  m_CyclesPerFrame = static_cast<u64>(system.GetSystemTimers().GetTicksPerSecond()) *
                      vi.GetTargetRefreshRateDenominator() / vi.GetTargetRefreshRateNumerator();
   m_ElapsedCycles = 0;
   m_FrameFifoSize = static_cast<u32>(frame.fifoData.size());
@@ -820,14 +815,14 @@ bool FifoPlayer::ShouldLoadXF(u8 reg)
            (address >= XFMEM_UNKNOWN_GROUP_3_START && address <= XFMEM_UNKNOWN_GROUP_3_END));
 }
 
-bool FifoPlayer::IsIdleSet()
+bool FifoPlayer::IsIdleSet() const
 {
   CommandProcessor::UCPStatusReg status =
       Core::System::GetInstance().GetMMU().Read_U16(0xCC000000 | CommandProcessor::STATUS_REGISTER);
   return status.CommandIdle;
 }
 
-bool FifoPlayer::IsHighWatermarkSet()
+bool FifoPlayer::IsHighWatermarkSet() const
 {
   CommandProcessor::UCPStatusReg status =
       Core::System::GetInstance().GetMMU().Read_U16(0xCC000000 | CommandProcessor::STATUS_REGISTER);
