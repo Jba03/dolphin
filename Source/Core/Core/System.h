@@ -48,6 +48,7 @@ namespace Fifo
 class FifoManager;
 }
 class FifoPlayer;
+class FifoRecorder;
 namespace GPFifo
 {
 class GPFifoManager;
@@ -73,6 +74,10 @@ namespace MemoryInterface
 {
 class MemoryInterfaceManager;
 };
+namespace Movie
+{
+class MovieManager;
+}
 namespace PixelEngine
 {
 class PixelEngineManager;
@@ -148,6 +153,7 @@ public:
   ExpansionInterface::ExpansionInterfaceManager& GetExpansionInterface() const;
   Fifo::FifoManager& GetFifo() const;
   FifoPlayer& GetFifoPlayer() const;
+  FifoRecorder& GetFifoRecorder() const;
   GeometryShaderManager& GetGeometryShaderManager() const;
   GPFifo::GPFifoManager& GetGPFifo() const;
   HSP::HSPManager& GetHSP() const;
@@ -159,6 +165,7 @@ public:
   Memory::MemoryManager& GetMemory() const;
   MemoryInterface::MemoryInterfaceManager& GetMemoryInterface() const;
   PowerPC::MMU& GetMMU() const;
+  Movie::MovieManager& GetMovie() const;
   PixelEngine::PixelEngineManager& GetPixelEngine() const;
   PixelShaderManager& GetPixelShaderManager() const;
   PowerPC::PowerPCManager& GetPowerPC() const;

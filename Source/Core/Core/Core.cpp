@@ -96,10 +96,6 @@
 #include "VideoCommon/VideoBackendBase.h"
 #include "VideoCommon/VideoEvents.h"
 
-#ifdef ANDROID
-#include "jni/AndroidCommon/IDCache.h"
-#endif
-
 namespace Core
 {
 static bool s_wants_determinism;
@@ -388,12 +384,6 @@ static void CpuThread(Core::System& system, const std::optional<std::string>& sa
   // Clear performance data collected from previous threads.
   g_perf_metrics.Reset();
 
-#ifdef ANDROID
-  // For some reason, calling the JNI function AttachCurrentThread from the CPU thread after a
-  // certain point causes a crash if fastmem is enabled. Let's call it early to avoid that problem.
-  static_cast<void>(IDCache::GetEnvForThread());
-#endif
-
   // The JIT need to be able to intercept faults, both for fastmem and for the BLR optimization.
   const bool exception_handler = EMM::IsExceptionHandlerSupported();
   if (exception_handler)
@@ -564,8 +554,8 @@ static void EmuThread(Core::System& system, std::unique_ptr<BootParameters> boot
   system.GetCustomAssetLoader().Init();
   Common::ScopeGuard asset_loader_guard([&system] { system.GetCustomAssetLoader().Shutdown(); });
 
-  Movie::Init(*boot);
-  Common::ScopeGuard movie_guard{&Movie::Shutdown};
+  system.GetMovie().Init(*boot);
+  Common::ScopeGuard movie_guard([&system] { system.GetMovie().Shutdown(); });
 
   AudioCommon::InitSoundStream(system);
   Common::ScopeGuard audio_guard([&system] { AudioCommon::ShutdownSoundStream(system); });
@@ -1019,7 +1009,8 @@ void UpdateWantDeterminism(bool initial)
   // For now, this value is not itself configurable.  Instead, individual
   // settings that depend on it, such as GPU determinism mode. should have
   // override options for testing,
-  bool new_want_determinism = Movie::IsMovieActive() || NetPlay::IsNetPlayRunning();
+  auto& system = Core::System::GetInstance();
+  bool new_want_determinism = system.GetMovie().IsMovieActive() || NetPlay::IsNetPlayRunning();
   if (new_want_determinism != s_wants_determinism || initial)
   {
     NOTICE_LOG_FMT(COMMON, "Want determinism <- {}", new_want_determinism ? "true" : "false");
@@ -1030,7 +1021,6 @@ void UpdateWantDeterminism(bool initial)
       if (ios)
         ios->UpdateWantDeterminism(new_want_determinism);
 
-      auto& system = Core::System::GetInstance();
       system.GetFifo().UpdateWantDeterminism(new_want_determinism);
 
       // We need to clear the cache because some parts of the JIT depend on want_determinism,

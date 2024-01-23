@@ -9,6 +9,7 @@
 #include "Core/Config/MainSettings.h"
 #include "Core/CoreTiming.h"
 #include "Core/FifoPlayer/FifoPlayer.h"
+#include "Core/FifoPlayer/FifoRecorder.h"
 #include "Core/HW/AudioInterface.h"
 #include "Core/HW/CPU.h"
 #include "Core/HW/DSP.h"
@@ -25,6 +26,7 @@
 #include "Core/HW/SystemTimers.h"
 #include "Core/HW/VideoInterface.h"
 #include "Core/HW/WII_IPC.h"
+#include "Core/Movie.h"
 #include "Core/PowerPC/Interpreter/Interpreter.h"
 #include "Core/PowerPC/JitInterface.h"
 #include "Core/PowerPC/PowerPC.h"
@@ -51,7 +53,7 @@ struct System::Impl
         m_mmu(system, m_memory, m_power_pc), m_processor_interface(system),
         m_serial_interface(system), m_system_timers(system), m_video_interface(system),
         m_interpreter(system, m_power_pc.GetPPCState(), m_mmu), m_jit_interface(system),
-        m_fifo_player(system)
+        m_fifo_player(system), m_fifo_recorder(system), m_movie(system)
   {
   }
 
@@ -91,6 +93,8 @@ struct System::Impl
   JitInterface m_jit_interface;
   VideoCommon::CustomAssetLoader m_custom_asset_loader;
   FifoPlayer m_fifo_player;
+  FifoRecorder m_fifo_recorder;
+  Movie::MovieManager m_movie;
 };
 
 System::System() : m_impl{std::make_unique<Impl>(*this)}
@@ -186,6 +190,11 @@ FifoPlayer& System::GetFifoPlayer() const
   return m_impl->m_fifo_player;
 }
 
+FifoRecorder& System::GetFifoRecorder() const
+{
+  return m_impl->m_fifo_recorder;
+}
+
 GeometryShaderManager& System::GetGeometryShaderManager() const
 {
   return m_impl->m_geometry_shader_manager;
@@ -239,6 +248,11 @@ MemoryInterface::MemoryInterfaceManager& System::GetMemoryInterface() const
 PowerPC::MMU& System::GetMMU() const
 {
   return m_impl->m_mmu;
+}
+
+Movie::MovieManager& System::GetMovie() const
+{
+  return m_impl->m_movie;
 }
 
 PixelEngine::PixelEngineManager& System::GetPixelEngine() const
