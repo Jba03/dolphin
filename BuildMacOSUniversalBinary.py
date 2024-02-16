@@ -90,7 +90,6 @@ DEFAULT_CONFIG = {
 
 ARCHITECTURES = ["arm64"]
 
-
 def parse_args(conf=DEFAULT_CONFIG):
     """
     Parses the command line arguments into a config dictionary.
