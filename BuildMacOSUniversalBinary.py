@@ -343,7 +343,7 @@ def build(config):
 
     # Source binary trees to merge together
     src_app0 = ARCHITECTURES[0]+"/Binaries/"
-    src_app1 = ARCHITECTURES[1]+"/Binaries/"
+    src_app1 = ARCHITECTURES[0]+"/Binaries/"
 
     recursive_merge_binaries(src_app0, src_app1, dst_app)
     for path in glob.glob(dst_app+"/*"):
