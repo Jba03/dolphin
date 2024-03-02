@@ -382,7 +382,7 @@ bool RenderWidget::event(QEvent* event)
     // Unhide on movement
     if (Settings::Instance().GetCursorVisibility() == Config::ShowCursor::OnMovement)
     {
-      setCursor(Qt::ArrowCursor);
+      //setCursor(Qt::ArrowCursor);
       m_mouse_timer->start(MOUSE_HIDE_DELAY);
     }
     break;
@@ -535,6 +535,20 @@ void RenderWidget::PassEventToPresenter(const QEvent* event)
     float y = static_cast<const QMouseEvent*>(event)->pos().y() * scale;
 
     g_presenter->SetMousePos(x, y);
+    
+    MouseCursor c = g_presenter->GetMouseCursor();
+    switch (c) {
+      case Arrow: setCursor(Qt::ArrowCursor); break;
+      case TextInput: setCursor(Qt::IBeamCursor); break;
+      case ResizeAll: setCursor(Qt::SizeAllCursor); break;
+      case ResizeNS: setCursor(Qt::SizeVerCursor); break;
+      case ResizeEW: setCursor(Qt::SizeHorCursor); break;
+      case ResizeNESW: setCursor(Qt::SizeBDiagCursor); break;
+      case ResizeNWSE: setCursor(Qt::SizeFDiagCursor); break;
+      case Hand: setCursor(Qt::PointingHandCursor); break;
+      case None: setCursor(Qt::ArrowCursor);
+      default: break;
+    }
   }
   break;
 
@@ -543,6 +557,13 @@ void RenderWidget::PassEventToPresenter(const QEvent* event)
   {
     const u32 button_mask = static_cast<u32>(static_cast<const QMouseEvent*>(event)->buttons());
     g_presenter->SetMousePress(button_mask);
+  }
+  break;
+          
+  case QEvent::Wheel:
+  {
+    const float diff = static_cast<const QWheelEvent*>(event)->pixelDelta().y() / 64.0f;
+    g_presenter->SetMouseScroll(diff);
   }
   break;
 

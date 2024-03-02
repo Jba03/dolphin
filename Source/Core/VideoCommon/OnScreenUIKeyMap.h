@@ -35,3 +35,16 @@ enum class DolphinKey
 };
 
 using DolphinKeyMap = Common::EnumMap<int, DolphinKey::Z>;
+
+enum MouseCursor
+{
+  None = -1,
+  Arrow = 0,
+  TextInput,
+  ResizeAll,
+  ResizeNS,
+  ResizeEW,
+  ResizeNESW,
+  ResizeNWSE,
+  Hand,
+};

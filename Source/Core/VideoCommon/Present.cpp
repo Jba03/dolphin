@@ -752,29 +752,29 @@ void Presenter::Present()
   // with the loader, and it has not been unmapped yet. Force a pipeline flush to avoid this.
   g_vertex_manager->Flush();
 
-    static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
-    //g_texture_cache->GetXFBTexture(xfb, <#u32 width#>, <#u32 height#>, <#u32 stride#>, <#MathUtil::Rectangle<int> *display_rect#>)
-    payload.texture = m_xfb_entry ? m_xfb_entry->texture.get() : NULL;
-    payload.ctx = GImGui;
-    payload.disable_drawing = false;
-    
-    for (Common::ExternalTool* tool : Common::external_tools)
-    {
-      // printf("on update!\n");
-      struct Common::ExternalTool::Message message;
-      message.type = mhash("update");
-      message.data = nullptr;
-      tool->Message(message);
-    }
-        
-    for (Common::ExternalTool* tool : Common::external_tools)
-    {
-      //printf("on video!\n");
-      struct Common::ExternalTool::Message message;
-      message.type = mhash("video");
-      message.data = &payload;
-      tool->Message(message);
-    }
+  static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
+  //g_texture_cache->GetXFBTexture(xfb, <#u32 width#>, <#u32 height#>, <#u32 stride#>, <#MathUtil::Rectangle<int> *display_rect#>)
+  payload.texture = m_xfb_entry ? m_xfb_entry->texture.get() : NULL;
+  payload.ctx = GImGui;
+  payload.disable_drawing = false;
+  
+  for (Common::ExternalTool* tool : Common::external_tools)
+  {
+    // printf("on update!\n");
+    struct Common::ExternalTool::Message message;
+    message.type = mhash("update");
+    message.data = nullptr;
+    tool->Message(message);
+  }
+      
+  for (Common::ExternalTool* tool : Common::external_tools)
+  {
+    //printf("on video!\n");
+    struct Common::ExternalTool::Message message;
+    message.type = mhash("video");
+    message.data = &payload;
+    tool->Message(message);
+  }
     
   UpdateDrawRectangle();
 
@@ -840,7 +840,21 @@ void Presenter::SetMousePress(u32 button_mask)
   if (m_onscreen_ui)
     m_onscreen_ui->SetMousePress(button_mask);
 }
+    
+void Presenter::SetMouseScroll(float diff)
+{
+  if (m_onscreen_ui)
+    m_onscreen_ui->SetMouseScroll(diff);
+}
 
+MouseCursor Presenter::GetMouseCursor()
+{
+  if (m_onscreen_ui)
+    return m_onscreen_ui->GetMouseCursor();
+  else
+    return MouseCursor::None;
+}
+  
 void Presenter::DoState(PointerWrap& p)
 {
   p.Do(m_frame_count);

@@ -56,6 +56,7 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
 
   // Don't create an ini file. TODO: Do we want this in the future?
   ImGui::GetIO().IniFilename = nullptr;
+  ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   SetScale(scale);
 
   PortableVertexDeclaration vdecl = {};
@@ -402,6 +403,8 @@ void OnScreenUI::Finalize()
   DrawChallenges();
 #endif  // USE_RETRO_ACHIEVEMENTS
   ImGui::Render();
+  
+  m_current_cursor = (MouseCursor)ImGui::GetMouseCursor();
 }
 
 std::unique_lock<std::mutex> OnScreenUI::GetImGuiLock()
@@ -474,6 +477,16 @@ void OnScreenUI::SetMousePress(u32 button_mask)
 
   for (size_t i = 0; i < std::size(ImGui::GetIO().MouseDown); i++)
     ImGui::GetIO().MouseDown[i] = (button_mask & (1u << i)) != 0;
+}
+    
+void OnScreenUI::SetMouseScroll(float diff)
+{
+  ImGui::GetIO().AddMouseWheelEvent(0, diff);
+}
+  
+MouseCursor OnScreenUI::GetMouseCursor()
+{
+  return m_current_cursor;
 }
 
 }  // namespace VideoCommon
