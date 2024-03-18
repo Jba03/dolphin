@@ -121,7 +121,9 @@ void PatchFixedFunctions(Core::System& system)
 
 void PatchFunctions(Core::System& system)
 {
-  auto& ppc_state = system.GetPPCState();
+  auto& power_pc = system.GetPowerPC();
+  auto& ppc_state = power_pc.GetPPCState();
+  auto& ppc_symbol_db = power_pc.GetSymbolDB();
 
   // Remove all hooks that aren't fixed address hooks
   for (auto i = s_hooked_addresses.begin(); i != s_hooked_addresses.end();)
@@ -143,7 +145,7 @@ void PatchFunctions(Core::System& system)
     if (os_patches[i].flags == HookFlag::Fixed)
       continue;
 
-    for (const auto& symbol : g_symbolDB.GetSymbolsFromName(os_patches[i].name))
+    for (const auto& symbol : ppc_symbol_db.GetSymbolsFromName(os_patches[i].name))
     {
       for (u32 addr = symbol->address; addr < symbol->address + symbol->size; addr += 4)
       {
@@ -201,14 +203,14 @@ u32 GetHookByAddress(u32 address)
   return (iter != s_hooked_addresses.end()) ? iter->second : 0;
 }
 
-u32 GetHookByFunctionAddress(u32 address)
+u32 GetHookByFunctionAddress(PPCSymbolDB& ppc_symbol_db, u32 address)
 {
   const u32 index = GetHookByAddress(address);
   // Fixed hooks use a fixed address and don't patch the whole function
   if (index == 0 || os_patches[index].flags == HookFlag::Fixed)
     return index;
 
-  const auto symbol = g_symbolDB.GetSymbolFromAddr(address);
+  const Common::Symbol* const symbol = ppc_symbol_db.GetSymbolFromAddr(address);
   return (symbol && symbol->address == address) ? index : 0;
 }
 
@@ -222,9 +224,10 @@ HookFlag GetHookFlagsByIndex(u32 index)
   return os_patches[index].flags;
 }
 
-TryReplaceFunctionResult TryReplaceFunction(u32 address, PowerPC::CoreMode mode)
+TryReplaceFunctionResult TryReplaceFunction(PPCSymbolDB& ppc_symbol_db, u32 address,
+                                            PowerPC::CoreMode mode)
 {
-  const u32 hook_index = GetHookByFunctionAddress(address);
+  const u32 hook_index = GetHookByFunctionAddress(ppc_symbol_db, address);
   if (hook_index == 0)
     return {};
 
@@ -252,7 +255,8 @@ u32 UnPatch(Core::System& system, std::string_view patch_name)
   if (patch == std::end(os_patches))
     return 0;
 
-  auto& ppc_state = system.GetPPCState();
+  auto& power_pc = system.GetPowerPC();
+  auto& ppc_state = power_pc.GetPPCState();
 
   if (patch->flags == HookFlag::Fixed)
   {
@@ -275,10 +279,10 @@ u32 UnPatch(Core::System& system, std::string_view patch_name)
     return addr;
   }
 
-  const auto& symbols = g_symbolDB.GetSymbolsFromName(patch_name);
+  const auto symbols = power_pc.GetSymbolDB().GetSymbolsFromName(patch_name);
   if (!symbols.empty())
   {
-    const auto& symbol = symbols[0];
+    const Common::Symbol* const symbol = symbols.front();
     for (u32 addr = symbol->address; addr < symbol->address + symbol->size; addr += 4)
     {
       s_hooked_addresses.erase(addr);
