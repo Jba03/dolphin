@@ -258,7 +258,7 @@ JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_PauseEmulati
 JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_StopEmulation(JNIEnv*, jclass)
 {
   HostThreadLock guard;
-  Core::Stop();
+  Core::Stop(Core::System::GetInstance());
 
   // Kick the waiting event
   s_update_main_frame_event.Set();
@@ -315,7 +315,7 @@ JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_SaveState(JN
                                                                               jboolean wait)
 {
   HostThreadLock guard;
-  State::Save(slot, wait);
+  State::Save(Core::System::GetInstance(), slot, wait);
 }
 
 JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_SaveStateAs(JNIEnv* env, jclass,
@@ -323,21 +323,21 @@ JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_SaveStateAs(
                                                                                 jboolean wait)
 {
   HostThreadLock guard;
-  State::SaveAs(GetJString(env, path), wait);
+  State::SaveAs(Core::System::GetInstance(), GetJString(env, path), wait);
 }
 
 JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_LoadState(JNIEnv*, jclass,
                                                                               jint slot)
 {
   HostThreadLock guard;
-  State::Load(slot);
+  State::Load(Core::System::GetInstance(), slot);
 }
 
 JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_LoadStateAs(JNIEnv* env, jclass,
                                                                                 jstring path)
 {
   HostThreadLock guard;
-  State::LoadAs(GetJString(env, path));
+  State::LoadAs(Core::System::GetInstance(), GetJString(env, path));
 }
 
 JNIEXPORT jlong JNICALL
@@ -408,12 +408,12 @@ JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_SetProfiling
                                                                                  jboolean enable)
 {
   HostThreadLock guard;
-  Core::SetState(Core::State::Paused);
-  auto& jit_interface = Core::System::GetInstance().GetJitInterface();
-  jit_interface.ClearCache();
+  auto& system = Core::System::GetInstance();
+  auto& jit_interface = system.GetJitInterface();
+  const Core::CPUThreadGuard cpu_guard(system);
+  jit_interface.ClearCache(cpu_guard);
   jit_interface.SetProfilingState(enable ? JitInterface::ProfilingState::Enabled :
                                            JitInterface::ProfilingState::Disabled);
-  Core::SetState(Core::State::Running);
 }
 
 JNIEXPORT void JNICALL Java_org_dolphinemu_dolphinemu_NativeLibrary_WriteProfileResults(JNIEnv*,
@@ -586,11 +586,11 @@ static void Run(JNIEnv* env, std::unique_ptr<BootParameters>&& boot, bool riivol
     host_identity_guard.Unlock();
     s_update_main_frame_event.Wait();
     host_identity_guard.Lock();
-    Core::HostDispatchJobs();
+    Core::HostDispatchJobs(Core::System::GetInstance());
   }
 
   s_game_metadata_is_valid = false;
-  Core::Shutdown();
+  Core::Shutdown(Core::System::GetInstance());
   host_identity_guard.Unlock();
 
   env->CallStaticVoidMethod(IDCache::GetNativeLibraryClass(),
