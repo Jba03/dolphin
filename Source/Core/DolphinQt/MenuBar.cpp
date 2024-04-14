@@ -15,9 +15,12 @@
 #include <QMap>
 #include <QUrl>
 
+#include <fmt/format.h>
+
 #include "Common/Align.h"
 #include "Common/CommonPaths.h"
 #include "Common/FileUtil.h"
+#include "Common/IOFile.h"
 #include "Common/StringUtil.h"
 
 #include "Core/AchievementManager.h"
@@ -93,9 +96,9 @@ MenuBar::MenuBar(QWidget* parent) : QMenuBar(parent)
   connect(&Settings::Instance(), &Settings::EmulationStateChanged, this,
           [=, this](Core::State state) { OnEmulationStateChanged(state); });
   connect(Host::GetInstance(), &Host::UpdateDisasmDialog, this,
-          [this] { OnEmulationStateChanged(Core::GetState()); });
+          [this] { OnEmulationStateChanged(Core::GetState(Core::System::GetInstance())); });
 
-  OnEmulationStateChanged(Core::GetState());
+  OnEmulationStateChanged(Core::GetState(Core::System::GetInstance()));
   connect(&Settings::Instance(), &Settings::DebugModeToggled, this, &MenuBar::OnDebugModeToggled);
 
   connect(this, &MenuBar::SelectionChanged, this, &MenuBar::OnSelectionChanged);
@@ -150,6 +153,7 @@ void MenuBar::OnEmulationStateChanged(Core::State state)
                                 !Core::System::GetInstance().GetMovie().IsPlayingInput());
 
   // JIT
+  const bool jit_exists = Core::System::GetInstance().GetJitInterface().GetCore() != nullptr;
   m_jit_interpreter_core->setEnabled(running);
   m_jit_block_linking->setEnabled(!running);
   m_jit_disable_cache->setEnabled(!running);
@@ -158,6 +162,7 @@ void MenuBar::OnEmulationStateChanged(Core::State state)
   m_jit_clear_cache->setEnabled(running);
   m_jit_log_coverage->setEnabled(!running);
   m_jit_search_instruction->setEnabled(running);
+  m_jit_write_cache_log_dump->setEnabled(running && jit_exists);
 
   // Symbols
   m_symbols->setEnabled(running);
@@ -195,6 +200,30 @@ void MenuBar::OnDebugModeToggled(bool enabled)
   {
     removeAction(m_jit->menuAction());
     removeAction(m_symbols->menuAction());
+  }
+}
+
+void MenuBar::OnWriteJitBlockLogDump()
+{
+  const std::string filename = fmt::format("{}{}.txt", File::GetUserPath(D_DUMPDEBUG_JITBLOCKS_IDX),
+                                           SConfig::GetInstance().GetGameID());
+  File::IOFile f(filename, "w");
+  if (!f)
+  {
+    ModalMessageBox::warning(
+        this, tr("Error"),
+        tr("Failed to open \"%1\" for writing.").arg(QString::fromStdString(filename)));
+    return;
+  }
+  auto& system = Core::System::GetInstance();
+  system.GetJitInterface().JitBlockLogDump(Core::CPUThreadGuard{system}, f.GetHandle());
+  if (static bool ignore = false; ignore == false)
+  {
+    const int button_pressed = ModalMessageBox::information(
+        this, tr("Success"), tr("Wrote to \"%1\".").arg(QString::fromStdString(filename)),
+        QMessageBox::Ok | QMessageBox::Ignore);
+    if (button_pressed == QMessageBox::Ignore)
+      ignore = true;
   }
 }
 
@@ -889,6 +918,17 @@ void MenuBar::AddJITMenu()
       m_jit->addAction(tr("Log JIT Instruction Coverage"), this, &MenuBar::LogInstructions);
   m_jit_search_instruction =
       m_jit->addAction(tr("Search for an Instruction"), this, &MenuBar::SearchInstruction);
+
+  m_jit->addSeparator();
+
+  m_jit_profile_blocks = m_jit->addAction(tr("Enable JIT Block Profiling"));
+  m_jit_profile_blocks->setCheckable(true);
+  m_jit_profile_blocks->setChecked(Config::Get(Config::MAIN_DEBUG_JIT_ENABLE_PROFILING));
+  connect(m_jit_profile_blocks, &QAction::toggled, [](bool enabled) {
+    Config::SetBaseOrCurrent(Config::MAIN_DEBUG_JIT_ENABLE_PROFILING, enabled);
+  });
+  m_jit_write_cache_log_dump =
+      m_jit->addAction(tr("Write JIT Block Log Dump"), this, &MenuBar::OnWriteJitBlockLogDump);
 
   m_jit->addSeparator();
 
@@ -1774,20 +1814,19 @@ void MenuBar::SearchInstruction()
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
 
-  Core::CPUThreadGuard guard(system);
+  const std::string op_std = op.toStdString();
+  const Core::CPUThreadGuard guard(system);
 
   bool found = false;
   for (u32 addr = Memory::MEM1_BASE_ADDR; addr < Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal();
        addr += 4)
   {
-    const auto ins_name = QString::fromStdString(
-        PPCTables::GetInstructionName(PowerPC::MMU::HostRead_U32(guard, addr), addr));
-    if (op == ins_name)
+    if (op_std == PPCTables::GetInstructionName(PowerPC::MMU::HostRead_U32(guard, addr), addr))
     {
-      NOTICE_LOG_FMT(POWERPC, "Found {} at {:08x}", op.toStdString(), addr);
+      NOTICE_LOG_FMT(POWERPC, "Found {} at {:08x}", op_std, addr);
       found = true;
     }
   }
   if (!found)
-    NOTICE_LOG_FMT(POWERPC, "Opcode {} not found", op.toStdString());
+    NOTICE_LOG_FMT(POWERPC, "Opcode {} not found", op_std);
 }
