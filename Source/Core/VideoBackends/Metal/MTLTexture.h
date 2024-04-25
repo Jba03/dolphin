@@ -30,7 +30,7 @@ public:
 
   id<MTLTexture> GetMTLTexture() const { return m_tex; }
 
-private:
+//private:
   MRCOwned<id<MTLTexture>> m_tex;
 };
 

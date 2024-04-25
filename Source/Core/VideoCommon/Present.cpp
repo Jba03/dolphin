@@ -22,6 +22,7 @@
 #include "VideoCommon/PostProcessing.h"
 #include "VideoCommon/Statistics.h"
 #include "VideoCommon/VertexManagerBase.h"
+#include "VideoCommon/VertexShaderManager.h"
 #include "VideoCommon/VideoConfig.h"
 #include "VideoCommon/VideoEvents.h"
 #include "VideoCommon/Widescreen.h"
@@ -297,7 +298,11 @@ void Presenter::ConfigChanged(u32 changed_bits)
   if (changed_bits & ConfigChangeBits::CONFIG_CHANGE_BIT_STEREO_MODE)
   {
     if (m_onscreen_ui)
+    {
       m_onscreen_ui->RecompileImGuiPipeline();
+      //m_onscreen_ui->RecompileExternalPipeline();
+    }
+    
     if (m_post_processor)
       m_post_processor->RecompilePipeline();
   }
@@ -777,11 +782,15 @@ void Presenter::Present()
   // with the loader, and it has not been unmapped yet. Force a pipeline flush to avoid this.
   g_vertex_manager->Flush();
 
-  static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; } payload;
+  auto& system = Core::System::GetInstance();
+  auto& vertex_shader_manager = system.GetVertexShaderManager();
+  
+  static struct { void* texture; ImGuiContext* ctx; bool disable_drawing; float* matrix; } payload;
   //g_texture_cache->GetXFBTexture(xfb, <#u32 width#>, <#u32 height#>, <#u32 stride#>, <#MathUtil::Rectangle<int> *display_rect#>)
   payload.texture = m_xfb_entry ? m_xfb_entry->texture.get() : NULL;
   payload.ctx = GImGui;
   payload.disable_drawing = false;
+  payload.matrix = vertex_shader_manager.GetProjectionMatrix();
   
   for (Common::ExternalTool* tool : Common::external_tools)
   {
@@ -820,6 +829,7 @@ void Presenter::Present()
   if (m_onscreen_ui)
   {
     m_onscreen_ui->Finalize();
+    //m_onscreen_ui->DrawExternal();
     m_onscreen_ui->DrawImGui();
   }
 

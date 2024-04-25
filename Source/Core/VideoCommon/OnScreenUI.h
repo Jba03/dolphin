@@ -48,7 +48,12 @@ public:
 
   // Recompiles ImGui pipeline - call when stereo mode changes.
   bool RecompileImGuiPipeline();
-
+  
+  // Draw video in external tools
+  //void DrawExternal();
+  // Recompile external tool pipelines
+  //void RecompileExternalPipeline();
+  
   void SetScale(float backbuffer_scale);
 
   void Finalize();

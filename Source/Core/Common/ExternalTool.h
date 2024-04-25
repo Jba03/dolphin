@@ -1,10 +1,11 @@
-// Copyright 2021 Dolphin Emulator Project
+// Copyright 2023 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
 #include <vector>
 #include <type_traits>
+#include <map>
 
 #include "Common/DynamicLibrary.h"
 
@@ -25,6 +26,19 @@
 #include "Core/HLE/HLE.h"
 #include "Core/PowerPC/PowerPC.h"
 
+#include "VideoCommon/AbstractGfx.h"
+#include "VideoCommon/AbstractPipeline.h"
+#include "VideoCommon/AbstractShader.h"
+#include "VideoCommon/FramebufferShaderGen.h"
+#include "VideoCommon/NetPlayChatUI.h"
+#include "VideoCommon/NetPlayGolfUI.h"
+#include "VideoCommon/OnScreenDisplay.h"
+#include "VideoCommon/PerformanceMetrics.h"
+#include "VideoCommon/Present.h"
+#include "VideoCommon/Statistics.h"
+#include "VideoCommon/VertexManagerBase.h"
+#include "VideoCommon/VideoConfig.h"
+
 constexpr std::size_t constexpr_strlen(std::string_view s) { return s.size(); }
 /* http://lolengine.net/blog/2011/12/20/cpp-constant-string-hash */
 #define H1(s,i,x)   (x*65599u+(uint8_t)s[(i)<constexpr_strlen(s)?constexpr_strlen(s)-1-(i):constexpr_strlen(s)])
@@ -33,7 +47,6 @@ constexpr std::size_t constexpr_strlen(std::string_view s) { return s.size(); }
 #define H64(s,i,x)  H16(s,i,H16(s,i+16,H16(s,i+32,H16(s,i+48,x))))
 #define H256(s,i,x) H64(s,i,H64(s,i+64,H64(s,i+128,H64(s,i+192,x))))
 #define mhash(s) ((uint32_t)(H256(s,0,0)^(H256(s,0,0)>>16)))
-
 
 #define EXTERN_MESSAGE_INITIALIZE         0
 #define EXTERN_MESSAGE_ON_UPDATE          1
@@ -48,12 +61,32 @@ constexpr std::size_t constexpr_strlen(std::string_view s) { return s.size(); }
 
 namespace Common
 {
+
 static inline uint8_t* GetRAM()
 {
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
-    
   return memory.GetRAM();
+}
+
+static std::map<std::string, std::unique_ptr<AbstractTexture>, std::less<>> texture_map;
+
+static inline auto CreateTexture(std::string name, u32 width, u32 height) -> bool {
+  TextureConfig config;
+  config.width = width;
+  config.height = height;
+  
+  //std::unique_ptr<AbstractTexture> tex = g_gfx->CreateTexture(config);
+  texture_map[name] = g_gfx->CreateTexture(config);
+  return true;
+}
+
+static inline auto DestroyTexture(std::string name) -> bool {
+  if (texture_map.find(name) != texture_map.end()) {
+    texture_map[name].release();
+    return true;
+  }
+  return false;
 }
 
 static inline const char* GetExternalToolsConfigurationPath()

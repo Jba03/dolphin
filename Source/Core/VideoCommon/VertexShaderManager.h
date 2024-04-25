@@ -23,22 +23,22 @@ class alignas(16) VertexShaderManager
 public:
   void Init();
   void DoState(PointerWrap& p);
-
+  
   // constant management
   void SetProjectionMatrix(XFStateManager& xf_state_manager);
   void SetConstants(const std::vector<std::string>& textures, XFStateManager& xf_state_manager);
-
+  
   // data: 3 floats representing the X, Y and Z vertex model coordinates and the posmatrix index.
   // out:  4 floats which will be initialized with the corresponding clip space coordinates
   // NOTE: m_projection_matrix must be up to date when this is called
   //       (i.e. VertexShaderManager::SetConstants needs to be called before using this!)
   void TransformToClipSpace(const float* data, float* out, u32 mtxIdx);
-
+  
   static bool UseVertexDepthRange();
-
+  
   VertexShaderConstants constants{};
   bool dirty = false;
-
+  
   static DOLPHIN_FORCE_INLINE void UpdateValue(bool* dirty, u32* old_value, u32 new_value)
   {
     if (*old_value == new_value)
@@ -46,7 +46,7 @@ public:
     *old_value = new_value;
     *dirty = true;
   }
-
+  
   static DOLPHIN_FORCE_INLINE void UpdateOffset(bool* dirty, bool include_components,
                                                 u32* old_value, const AttributeFormat& attribute)
   {
@@ -57,7 +57,7 @@ public:
       new_value |= attribute.components << 16;
     UpdateValue(dirty, old_value, new_value);
   }
-
+  
   template <size_t N>
   static DOLPHIN_FORCE_INLINE void UpdateOffsets(bool* dirty, bool include_components,
                                                  std::array<u32, N>* old_value,
@@ -66,7 +66,7 @@ public:
     for (size_t i = 0; i < N; i++)
       UpdateOffset(dirty, include_components, &(*old_value)[i], attribute[i]);
   }
-
+  
   DOLPHIN_FORCE_INLINE void SetVertexFormat(u32 components, const PortableVertexDeclaration& format)
   {
     UpdateValue(&dirty, &constants.components, components);
@@ -76,6 +76,11 @@ public:
     UpdateOffsets(&dirty, true, &constants.vertex_offset_texcoords, format.texcoords);
     UpdateOffsets(&dirty, false, &constants.vertex_offset_colors, format.colors);
     UpdateOffsets(&dirty, false, &constants.vertex_offset_normals, format.normals);
+  }
+  
+  float* GetProjectionMatrix()
+  {
+    return m_projection_matrix.data();
   }
 
 private:
