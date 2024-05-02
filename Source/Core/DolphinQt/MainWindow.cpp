@@ -2029,6 +2029,7 @@ void MainWindow::ShowAchievementsWindow()
   m_achievements_window->show();
   m_achievements_window->raise();
   m_achievements_window->activateWindow();
+  m_achievements_window->UpdateData(AchievementManager::UpdatedItems{.all = true});
 }
 
 void MainWindow::ShowAchievementSettings()
