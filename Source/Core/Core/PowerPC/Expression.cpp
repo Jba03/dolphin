@@ -11,9 +11,19 @@
 #include <string_view>
 #include <utility>
 
+// https://github.com/zserge/expr/ is a C program and sorta valid C++.
+// When included in a C++ program, it's treated as a C++ code, and it may cause
+// issues: <cmath> may already be included, if so, including <math.h> may
+// not do anything. <math.h> is obligated to put its functions in the global
+// namespace, while <cmath> may or may not. The C code we're interpreting as
+// C++ won't call functions by their qualified names. The code may work anyway
+// if <cmath> puts its functions in the global namespace, or if the functions
+// are actually macros that expand inline, both of which are common.
+// NetBSD 10.0 i386 is an exception, and we need `using` there.
+using std::isinf;
+using std::isnan;
 #include <expr.h>
 
-#include "Common/BitUtils.h"
 #include "Common/CommonTypes.h"
 #include "Common/Logging/Log.h"
 #include "Core/Core.h"
@@ -84,7 +94,7 @@ static double HostReadFunc(expr_func* f, vec_expr_t* args, void* c)
   const u32 address = static_cast<u32>(expr_eval(&vec_nth(args, 0)));
 
   Core::CPUThreadGuard guard(Core::System::GetInstance());
-  return Common::BitCast<T>(HostRead<U>(guard, address));
+  return std::bit_cast<T>(HostRead<U>(guard, address));
 }
 
 template <typename T, typename U = T>
@@ -96,7 +106,7 @@ static double HostWriteFunc(expr_func* f, vec_expr_t* args, void* c)
   const u32 address = static_cast<u32>(expr_eval(&vec_nth(args, 1)));
 
   Core::CPUThreadGuard guard(Core::System::GetInstance());
-  HostWrite<U>(guard, Common::BitCast<U>(var), address);
+  HostWrite<U>(guard, std::bit_cast<U>(var), address);
   return var;
 }
 
@@ -105,7 +115,7 @@ static double CastFunc(expr_func* f, vec_expr_t* args, void* c)
 {
   if (vec_len(args) != 1)
     return 0;
-  return Common::BitCast<T>(static_cast<U>(expr_eval(&vec_nth(args, 0))));
+  return std::bit_cast<T>(static_cast<U>(expr_eval(&vec_nth(args, 0))));
 }
 
 static double CallstackFunc(expr_func* f, vec_expr_t* args, void* c)

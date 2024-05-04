@@ -903,7 +903,7 @@ void MainWindow::OnStopComplete()
 
 bool MainWindow::RequestStop()
 {
-  if (!Core::IsRunning())
+  if (!Core::IsRunning(Core::System::GetInstance()))
   {
     Core::QueueHostJob([this](Core::System&) { OnStopComplete(); }, true);
     return true;
@@ -1556,7 +1556,7 @@ void MainWindow::NetPlayInit()
 
 bool MainWindow::NetPlayJoin()
 {
-  if (Core::IsRunning())
+  if (Core::IsRunning(Core::System::GetInstance()))
   {
     ModalMessageBox::critical(nullptr, tr("Error"),
                               tr("Can't start a NetPlay Session while a game is still running!"));
@@ -1623,7 +1623,7 @@ bool MainWindow::NetPlayJoin()
 
 bool MainWindow::NetPlayHost(const UICommon::GameFile& game)
 {
-  if (Core::IsRunning())
+  if (Core::IsRunning(Core::System::GetInstance()))
   {
     ModalMessageBox::critical(nullptr, tr("Error"),
                               tr("Can't start a NetPlay Session while a game is still running!"));
@@ -1870,7 +1870,7 @@ void MainWindow::OnImportNANDBackup()
 
   result.wait();
 
-  m_menu_bar->UpdateToolsMenu(Core::IsRunning());
+  m_menu_bar->UpdateToolsMenu(Core::IsRunning(Core::System::GetInstance()));
 }
 
 void MainWindow::OnPlayRecording()
@@ -1900,8 +1900,9 @@ void MainWindow::OnPlayRecording()
 
 void MainWindow::OnStartRecording()
 {
-  auto& movie = Core::System::GetInstance().GetMovie();
-  if ((!Core::IsRunningAndStarted() && Core::IsRunning()) || movie.IsRecordingInput() ||
+  auto& system = Core::System::GetInstance();
+  auto& movie = system.GetMovie();
+  if ((!Core::IsRunningAndStarted() && Core::IsRunning(system)) || movie.IsRecordingInput() ||
       movie.IsPlayingInput())
   {
     return;
@@ -1933,7 +1934,7 @@ void MainWindow::OnStartRecording()
   {
     emit RecordingStatusChanged(true);
 
-    if (!Core::IsRunning())
+    if (!Core::IsRunning(system))
       Play();
   }
 }
@@ -1994,10 +1995,11 @@ void MainWindow::ShowTASInput()
     }
   }
 
+  auto& system = Core::System::GetInstance();
   for (int i = 0; i < num_wii_controllers; i++)
   {
     if (Config::Get(Config::GetInfoForWiimoteSource(i)) == WiimoteSource::Emulated &&
-        (!Core::IsRunning() || Core::System::GetInstance().IsWii()))
+        (!Core::IsRunning(system) || system.IsWii()))
     {
       SetQWidgetWindowDecorations(m_wii_tas_input_windows[i]);
       m_wii_tas_input_windows[i]->show();
