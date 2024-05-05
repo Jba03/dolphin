@@ -827,7 +827,7 @@ void MainWindow::Play(const std::optional<std::string>& savestate_path)
   // Otherwise, prompt for a new game.
   if (Core::GetState(Core::System::GetInstance()) == Core::State::Paused)
   {
-    Core::SetState(Core::State::Running);
+    Core::SetState(Core::System::GetInstance(), Core::State::Running);
   }
   else
   {
@@ -855,7 +855,7 @@ void MainWindow::Play(const std::optional<std::string>& savestate_path)
 
 void MainWindow::Pause()
 {
-  Core::SetState(Core::State::Paused);
+  Core::SetState(Core::System::GetInstance(), Core::State::Paused);
 }
 
 void MainWindow::TogglePause()
@@ -934,7 +934,7 @@ bool MainWindow::RequestStop()
     bool pause = !Settings::Instance().GetNetPlayClient();
 
     if (pause)
-      Core::SetState(Core::State::Paused);
+      Core::SetState(Core::System::GetInstance(), Core::State::Paused);
 
     if (rendered_widget_was_active)
     {
@@ -964,7 +964,7 @@ bool MainWindow::RequestStop()
       m_render_widget->SetWaitingForMessageBox(false);
 
       if (pause)
-        Core::SetState(state);
+        Core::SetState(Core::System::GetInstance(), state);
 
       return false;
     }
@@ -986,7 +986,7 @@ bool MainWindow::RequestStop()
     // Unpause because gracefully shutting down needs the game to actually request a shutdown.
     // TODO: Do not unpause in debug mode to allow debugging until the complete shutdown.
     if (Core::GetState(Core::System::GetInstance()) == Core::State::Paused)
-      Core::SetState(Core::State::Running);
+      Core::SetState(Core::System::GetInstance(), Core::State::Running);
 
     // Tell NetPlay about the power event
     if (NetPlay::IsNetPlayRunning())
