@@ -89,6 +89,7 @@ add_library(common
   JitRegister.cpp
   JitRegister.h
   JsonUtil.h
+  JsonUtil.cpp
   Lazy.h
   LinearDiskCache.h
   Logging/ConsoleListener.h
@@ -145,6 +146,7 @@ add_library(common
   TraversalClient.h
   TraversalProto.h
   TypeUtils.h
+  Unreachable.h
   UPnP.cpp
   UPnP.h
   VariantUtil.h

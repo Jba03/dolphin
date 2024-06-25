@@ -13,6 +13,7 @@
 #include <rcheevos/include/rc_api_info.h>
 #include <rcheevos/include/rc_hash.h>
 
+#include "Common/Assert.h"
 #include "Common/CommonPaths.h"
 #include "Common/FileUtil.h"
 #include "Common/Image.h"
@@ -22,6 +23,7 @@
 #include "Common/WorkQueueThread.h"
 #include "Core/Config/AchievementSettings.h"
 #include "Core/Core.h"
+#include "Core/HW/Memmap.h"
 #include "Core/PowerPC/MMU.h"
 #include "Core/System.h"
 #include "DiscIO/Blob.h"
@@ -44,7 +46,7 @@ void AchievementManager::Init()
   LoadDefaultBadges();
   if (!m_client && Config::Get(Config::RA_ENABLED))
   {
-    m_client = rc_client_create(MemoryPeeker, Request);
+    m_client = rc_client_create(MemoryVerifier, Request);
     std::string host_url = Config::Get(Config::RA_HOST_URL);
     if (!host_url.empty())
       rc_client_set_host(m_client, host_url.c_str());
@@ -120,6 +122,7 @@ void AchievementManager::LoadGame(const std::string& file_path, const DiscIO::Vo
   rc_client_set_unofficial_enabled(m_client, Config::Get(Config::RA_UNOFFICIAL_ENABLED));
   rc_client_set_encore_mode_enabled(m_client, Config::Get(Config::RA_ENCORE_ENABLED));
   rc_client_set_spectator_mode_enabled(m_client, Config::Get(Config::RA_SPECTATOR_ENABLED));
+  rc_client_set_read_memory_function(m_client, MemoryVerifier);
   if (volume)
   {
     std::lock_guard lg{m_lock};
@@ -338,7 +341,18 @@ AchievementManager::RichPresence AchievementManager::GetRichPresence() const
   return m_rich_presence;
 }
 
-const AchievementManager::NamedBadgeMap& AchievementManager::GetChallengeIcons() const
+const bool AchievementManager::AreChallengesUpdated() const
+{
+  return m_challenges_updated;
+}
+
+void AchievementManager::ResetChallengesUpdated()
+{
+  m_challenges_updated = false;
+}
+
+const std::unordered_set<AchievementManager::AchievementId>&
+AchievementManager::GetActiveChallenges() const
 {
   return m_active_challenges;
 }
@@ -668,13 +682,14 @@ void AchievementManager::LoadGameCallback(int result, const char* error_message,
   }
   INFO_LOG_FMT(ACHIEVEMENTS, "Loaded data for game ID {}.", game->id);
 
-  AchievementManager::GetInstance().m_display_welcome_message = true;
-  AchievementManager::GetInstance().FetchGameBadges();
-  AchievementManager::GetInstance().m_system = &Core::System::GetInstance();
-  AchievementManager::GetInstance().m_update_callback({.all = true});
+  auto& instance = AchievementManager::GetInstance();
+  rc_client_set_read_memory_function(instance.m_client, MemoryPeeker);
+  instance.m_display_welcome_message = true;
+  instance.FetchGameBadges();
+  instance.m_system = &Core::System::GetInstance();
+  instance.m_update_callback({.all = true});
   // Set this to a value that will immediately trigger RP
-  AchievementManager::GetInstance().m_last_rp_time =
-      std::chrono::steady_clock::now() - std::chrono::minutes{2};
+  instance.m_last_rp_time = std::chrono::steady_clock::now() - std::chrono::minutes{2};
 }
 
 void AchievementManager::ChangeMediaCallback(int result, const char* error_message,
@@ -695,6 +710,7 @@ void AchievementManager::ChangeMediaCallback(int result, const char* error_messa
 
     ERROR_LOG_FMT(ACHIEVEMENTS, "RetroAchievements media change failed: {}", error_message);
   }
+  rc_client_set_read_memory_function(AchievementManager::GetInstance().m_client, MemoryPeeker);
 }
 
 void AchievementManager::DisplayWelcomeMessage()
@@ -741,6 +757,8 @@ void AchievementManager::HandleAchievementTriggeredEvent(const rc_client_event_t
                   (rc_client_get_hardcore_enabled(instance.m_client)) ? OSD::Color::YELLOW :
                                                                         OSD::Color::CYAN,
                   &instance.GetAchievementBadge(client_event->achievement->id, false));
+  AchievementManager::GetInstance().m_update_callback(
+      UpdatedItems{.achievements = {client_event->achievement->id}});
 }
 
 void AchievementManager::HandleLeaderboardStartedEvent(const rc_client_event_t* client_event)
@@ -765,6 +783,8 @@ void AchievementManager::HandleLeaderboardSubmittedEvent(const rc_client_event_t
                               client_event->leaderboard->title),
                   OSD::Duration::VERY_LONG, OSD::Color::YELLOW);
   AchievementManager::GetInstance().FetchBoardInfo(client_event->leaderboard->id);
+  AchievementManager::GetInstance().m_update_callback(
+      UpdatedItems{.leaderboards = {client_event->leaderboard->id}});
 }
 
 void AchievementManager::HandleLeaderboardTrackerUpdateEvent(const rc_client_event_t* client_event)
@@ -798,25 +818,35 @@ void AchievementManager::HandleAchievementChallengeIndicatorShowEvent(
     const rc_client_event_t* client_event)
 {
   auto& instance = AchievementManager::GetInstance();
-  instance.m_active_challenges[client_event->achievement->badge_name] =
-      &AchievementManager::GetInstance().GetAchievementBadge(client_event->achievement->id, false);
+  const auto [iter, inserted] = instance.m_active_challenges.insert(client_event->achievement->id);
+  if (inserted)
+    instance.m_challenges_updated = true;
 }
 
 void AchievementManager::HandleAchievementChallengeIndicatorHideEvent(
     const rc_client_event_t* client_event)
 {
-  AchievementManager::GetInstance().m_active_challenges.erase(
-      client_event->achievement->badge_name);
+  auto& instance = AchievementManager::GetInstance();
+  const auto removed = instance.m_active_challenges.erase(client_event->achievement->id);
+  if (removed > 0)
+    instance.m_challenges_updated = true;
 }
 
 void AchievementManager::HandleAchievementProgressIndicatorShowEvent(
     const rc_client_event_t* client_event)
 {
-  const auto& instance = AchievementManager::GetInstance();
+  auto& instance = AchievementManager::GetInstance();
+  auto current_time = std::chrono::steady_clock::now();
+  const auto message_wait_time = std::chrono::milliseconds{OSD::Duration::SHORT};
+  if (current_time - instance.m_last_progress_message < message_wait_time)
+    return;
   OSD::AddMessage(fmt::format("{} {}", client_event->achievement->title,
                               client_event->achievement->measured_progress),
                   OSD::Duration::SHORT, OSD::Color::GREEN,
                   &instance.GetAchievementBadge(client_event->achievement->id, false));
+  instance.m_last_progress_message = current_time;
+  AchievementManager::GetInstance().m_update_callback(
+      UpdatedItems{.achievements = {client_event->achievement->id}});
 }
 
 void AchievementManager::HandleGameCompletedEvent(const rc_client_event_t* client_event,
@@ -889,11 +919,36 @@ void AchievementManager::Request(const rc_api_request_t* request,
       });
 }
 
+// Currently, when rc_client calls the memory peek method provided in its constructor (or in
+// rc_client_set_read_memory_function) it will do so on the thread that calls DoFrame, which is
+// currently the host thread, with one exception: an asynchronous callback in the load game process.
+// This is done to validate/invalidate each memory reference in the downloaded assets, mark assets
+// as unsupported, and notify the player upon startup that there are unsupported assets and how
+// many. As such, all that call needs to do is return the number of bytes that can be read with this
+// call. As only the CPU and host threads are allowed to read from memory, I provide a separate
+// method for this verification. In lieu of a more convenient set of steps, I provide MemoryVerifier
+// to rc_client at construction, and in the Load Game callback, after the verification has been
+// complete, I call rc_client_set_read_memory_function to switch to the usual MemoryPeeker for all
+// future synchronous calls.
+u32 AchievementManager::MemoryVerifier(u32 address, u8* buffer, u32 num_bytes, rc_client_t* client)
+{
+  auto& system = Core::System::GetInstance();
+  u32 ram_size = system.GetMemory().GetRamSizeReal();
+  if (address >= ram_size)
+    return 0;
+  return std::min(ram_size - address, num_bytes);
+}
+
 u32 AchievementManager::MemoryPeeker(u32 address, u8* buffer, u32 num_bytes, rc_client_t* client)
 {
   if (buffer == nullptr)
     return 0u;
   auto& system = Core::System::GetInstance();
+  if (!(Core::IsHostThread() || Core::IsCPUThread()))
+  {
+    ASSERT_MSG(ACHIEVEMENTS, false, "MemoryPeeker called from wrong thread");
+    return 0;
+  }
   Core::CPUThreadGuard threadguard(system);
   for (u32 num_read = 0; num_read < num_bytes; num_read++)
   {
@@ -970,6 +1025,11 @@ void AchievementManager::FetchBadge(AchievementManager::Badge* badge, u32 badge_
     }
 
     m_update_callback(callback_data);
+    if (badge_type == RC_IMAGE_TYPE_ACHIEVEMENT &&
+        m_active_challenges.contains(*callback_data.achievements.begin()))
+    {
+      m_challenges_updated = true;
+    }
   });
 }
 
