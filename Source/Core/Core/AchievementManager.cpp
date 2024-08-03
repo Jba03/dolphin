@@ -156,7 +156,6 @@ void AchievementManager::LoadGame(const std::string& file_path, const DiscIO::Vo
   rc_client_set_unofficial_enabled(m_client, Config::Get(Config::RA_UNOFFICIAL_ENABLED));
   rc_client_set_encore_mode_enabled(m_client, Config::Get(Config::RA_ENCORE_ENABLED));
   rc_client_set_spectator_mode_enabled(m_client, Config::Get(Config::RA_SPECTATOR_ENABLED));
-  rc_client_set_read_memory_function(m_client, MemoryVerifier);
   if (volume)
   {
     std::lock_guard lg{m_lock};
@@ -181,6 +180,7 @@ void AchievementManager::LoadGame(const std::string& file_path, const DiscIO::Vo
   }
   else
   {
+    rc_client_set_read_memory_function(m_client, MemoryVerifier);
     rc_client_begin_identify_and_load_game(m_client, RC_CONSOLE_GAMECUBE, file_path.c_str(), NULL,
                                            0, LoadGameCallback, NULL);
   }
@@ -295,10 +295,9 @@ bool AchievementManager::CanPause()
   bool can_pause = rc_client_can_pause(m_client, &frames_to_next_pause);
   if (!can_pause)
   {
-    OSD::AddMessage("Cannot spam pausing in hardcore mode.", OSD::Duration::VERY_LONG,
-                    OSD::Color::RED);
     OSD::AddMessage(
-        fmt::format("Can pause in {} seconds.",
+        fmt::format("RetroAchievements Hardcore Mode:\n"
+                    "Cannot pause until another {:.2f} seconds have passed.",
                     static_cast<float>(frames_to_next_pause) /
                         Core::System::GetInstance().GetVideoInterface().GetTargetRefreshRate()),
         OSD::Duration::VERY_LONG, OSD::Color::RED);
@@ -441,7 +440,7 @@ u32 AchievementManager::GetPlayerScore() const
 
 const AchievementManager::Badge& AchievementManager::GetPlayerBadge() const
 {
-  return m_player_badge;
+  return m_player_badge.data.empty() ? m_default_player_badge : m_player_badge;
 }
 
 std::string_view AchievementManager::GetGameDisplayName() const
@@ -461,7 +460,7 @@ rc_api_fetch_game_data_response_t* AchievementManager::GetGameData()
 
 const AchievementManager::Badge& AchievementManager::GetGameBadge() const
 {
-  return m_game_badge;
+  return m_game_badge.data.empty() ? m_default_game_badge : m_game_badge;
 }
 
 const AchievementManager::Badge& AchievementManager::GetAchievementBadge(AchievementId id,
@@ -480,8 +479,6 @@ AchievementManager::GetLeaderboardInfo(AchievementManager::AchievementId leaderb
   if (const auto leaderboard_iter = m_leaderboard_map.find(leaderboard_id);
       leaderboard_iter != m_leaderboard_map.end())
   {
-    if (leaderboard_iter->second.entries.size() == 0)
-      FetchBoardInfo(leaderboard_id);
     return &leaderboard_iter->second;
   }
 
@@ -697,7 +694,6 @@ void AchievementManager::LoadDefaultBadges()
                     DEFAULT_PLAYER_BADGE_FILENAME);
     }
   }
-  m_player_badge = m_default_player_badge;
 
   if (m_default_game_badge.data.empty())
   {
@@ -708,7 +704,6 @@ void AchievementManager::LoadDefaultBadges()
                     DEFAULT_GAME_BADGE_FILENAME);
     }
   }
-  m_game_badge = m_default_game_badge;
 
   if (m_default_unlocked_badge.data.empty())
   {
@@ -809,6 +804,8 @@ void AchievementManager::LeaderboardEntriesCallback(int result, const char* erro
     map_entry.username.assign(response_entry.user);
     memcpy(map_entry.score.data(), response_entry.display, FORMAT_SIZE);
     map_entry.rank = response_entry.rank;
+    if (ix == list->user_index)
+      leaderboard.player_index = response_entry.rank;
   }
   AchievementManager::GetInstance().m_update_callback({.leaderboards = {*leaderboard_id}});
 }
@@ -843,6 +840,22 @@ void AchievementManager::LoadGameCallback(int result, const char* error_message,
   instance.m_update_callback({.all = true});
   // Set this to a value that will immediately trigger RP
   instance.m_last_rp_time = std::chrono::steady_clock::now() - std::chrono::minutes{2};
+
+  std::lock_guard lg{instance.GetLock()};
+  auto* leaderboard_list =
+      rc_client_create_leaderboard_list(client, RC_CLIENT_LEADERBOARD_LIST_GROUPING_NONE);
+  for (u32 bucket = 0; bucket < leaderboard_list->num_buckets; bucket++)
+  {
+    const auto& leaderboard_bucket = leaderboard_list->buckets[bucket];
+    for (u32 board = 0; board < leaderboard_bucket.num_leaderboards; board++)
+    {
+      const auto& leaderboard = leaderboard_bucket.leaderboards[board];
+      instance.m_leaderboard_map.insert(
+          std::pair(leaderboard->id, LeaderboardStatus{.name = leaderboard->title,
+                                                       .description = leaderboard->description}));
+    }
+  }
+  rc_client_destroy_leaderboard_list(leaderboard_list);
 }
 
 void AchievementManager::ChangeMediaCallback(int result, const char* error_message,
@@ -850,7 +863,9 @@ void AchievementManager::ChangeMediaCallback(int result, const char* error_messa
 {
   AchievementManager::GetInstance().m_loading_volume.reset(nullptr);
   if (result == RC_OK)
+  {
     return;
+  }
 
   if (result == RC_HARDCORE_DISABLED)
   {
@@ -863,7 +878,6 @@ void AchievementManager::ChangeMediaCallback(int result, const char* error_messa
 
     ERROR_LOG_FMT(ACHIEVEMENTS, "RetroAchievements media change failed: {}", error_message);
   }
-  rc_client_set_read_memory_function(AchievementManager::GetInstance().m_client, MemoryPeeker);
 }
 
 void AchievementManager::DisplayWelcomeMessage()
@@ -873,7 +887,7 @@ void AchievementManager::DisplayWelcomeMessage()
   const u32 color =
       rc_client_get_hardcore_enabled(m_client) ? OSD::Color::YELLOW : OSD::Color::CYAN;
 
-  OSD::AddMessage("", OSD::Duration::VERY_LONG, OSD::Color::GREEN, &m_game_badge);
+  OSD::AddMessage("", OSD::Duration::VERY_LONG, OSD::Color::GREEN, &GetGameBadge());
   auto info = rc_client_get_game_info(m_client);
   if (!info)
   {
@@ -1018,7 +1032,7 @@ void AchievementManager::HandleGameCompletedEvent(const rc_client_event_t* clien
   OSD::AddMessage(fmt::format("Congratulations! {} has {} {}", user_info->display_name,
                               hardcore ? "mastered" : "completed", game_info->title),
                   OSD::Duration::VERY_LONG, hardcore ? OSD::Color::YELLOW : OSD::Color::CYAN,
-                  &AchievementManager::GetInstance().m_game_badge);
+                  &AchievementManager::GetInstance().GetGameBadge());
 }
 
 void AchievementManager::HandleResetEvent(const rc_client_event_t* client_event)
@@ -1064,7 +1078,7 @@ void AchievementManager::Request(const rc_api_request_t* request,
         }
         else
         {
-          constexpr char error_message[] = "Failed HTTP request.";
+          static constexpr char error_message[] = "Failed HTTP request.";
           server_response.body = error_message;
           server_response.body_length = sizeof(error_message);
           server_response.http_status_code = RC_API_SERVER_RESPONSE_RETRYABLE_CLIENT_ERROR;
@@ -1162,7 +1176,7 @@ void AchievementManager::FetchBadge(AchievementManager::Badge* badge, u32 badge_
       }
       auto http_response = http_request.Get(api_request.url, USER_AGENT_HEADER,
                                             Common::HttpRequest::AllowedReturnCodes::All);
-      if (http_response.has_value() && http_response->size() <= 0)
+      if (!http_response.has_value() || http_response->empty())
       {
         WARN_LOG_FMT(ACHIEVEMENTS,
                      "RetroAchievements connection failed on image request.\n URL: {}",
