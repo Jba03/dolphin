@@ -884,10 +884,10 @@ void Presenter::Present()
   UpdateDrawRectangle();
 
   g_gfx->BeginUtilityDrawing();
-  g_gfx->BindBackbuffer({{0.0f, 0.0f, 0.0f, 1.0f}});
+  const bool backbuffer_bound = g_gfx->BindBackbuffer({{0.0f, 0.0f, 0.0f, 1.0f}});
 
   // Render the XFB to the screen.
-  if (m_xfb_entry)
+  if (backbuffer_bound && m_xfb_entry)
   {
     // Adjust the source rectangle instead of using an oversized viewport to render the XFB.
     auto render_target_rc = GetTargetRectangle();
@@ -900,8 +900,13 @@ void Presenter::Present()
   if (m_onscreen_ui)
   {
     m_onscreen_ui->Finalize();
+<<<<<<< HEAD
     //m_onscreen_ui->DrawExternal();
     m_onscreen_ui->DrawImGui();
+=======
+    if (backbuffer_bound)
+      m_onscreen_ui->DrawImGui();
+>>>>>>> upstream/master
   }
 
   // Present to the window system.
