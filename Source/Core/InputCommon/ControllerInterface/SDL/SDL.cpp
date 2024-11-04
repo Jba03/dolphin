@@ -435,6 +435,9 @@ InputBackend::InputBackend(ControllerInterface* controller_interface)
   // We want buttons to come in as positions, not labels
   SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
 
+  // Disable DualSense Player LEDs; We already colorize the Primary LED
+  SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS5_PLAYER_LED, "0");
+
   m_hotplug_thread = std::thread([this] {
     Common::ScopeGuard quit_guard([] {
       // TODO: there seems to be some sort of memory leak with SDL, quit isn't freeing everything up
@@ -707,8 +710,8 @@ GameController::GameController(SDL_GameController* const gamecontroller,
     const bool is_registered = registered_axes.contains(i);
 
     // each axis gets a negative and a positive input instance associated with it
-    AddAnalogInputs(new LegacyAxis(m_joystick, i, -32768, is_registered),
-                    new LegacyAxis(m_joystick, i, 32767, is_registered));
+    AddFullAnalogSurfaceInputs(new LegacyAxis(m_joystick, i, -32768, is_registered),
+                               new LegacyAxis(m_joystick, i, 32767, is_registered));
   }
 
   // Hats
