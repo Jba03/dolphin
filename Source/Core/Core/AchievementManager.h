@@ -132,7 +132,6 @@ public:
   void DoIdle();
 
   std::recursive_mutex& GetLock();
-  void SetHardcoreMode();
   bool IsHardcoreModeActive() const;
   void SetGameIniId(const std::string& game_ini_id) { m_game_ini_id = game_ini_id; }
 
@@ -198,6 +197,8 @@ private:
   static void ChangeMediaCallback(int result, const char* error_message, rc_client_t* client,
                                   void* userdata);
   void DisplayWelcomeMessage();
+
+  void SetHardcoreMode();
 
   template <typename T>
   void FilterApprovedIni(std::vector<T>& codes, const std::string& game_ini_id) const;
@@ -275,9 +276,19 @@ private:
 
 #include <string>
 
+namespace ActionReplay
+{
+struct ARCode;
+}
+
 namespace DiscIO
 {
 class Volume;
+}
+
+namespace Gecko
+{
+class GeckoCode;
 }
 
 class AchievementManager

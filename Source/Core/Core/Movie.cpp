@@ -93,7 +93,7 @@ static std::array<u8, 20> ConvertGitRevisionToBytes(const std::string& revision)
 {
   std::array<u8, 20> revision_bytes{};
 
-  if (revision.size() % 2 == 0 && std::all_of(revision.begin(), revision.end(), ::isxdigit))
+  if (revision.size() % 2 == 0 && std::ranges::all_of(revision, Common::IsXDigit))
   {
     // The revision string normally contains a git commit hash,
     // which is 40 hexadecimal digits long. In DTM files, each pair of
@@ -1081,11 +1081,11 @@ void MovieManager::LoadInput(const std::string& movie_path)
       std::vector<u8> movInput(m_current_byte);
       t_record.ReadArray(movInput.data(), movInput.size());
 
-      const auto result = std::mismatch(movInput.begin(), movInput.end(), m_temp_input.begin());
+      const auto mismatch_result = std::ranges::mismatch(movInput, m_temp_input);
 
-      if (result.first != movInput.end())
+      if (mismatch_result.in1 != movInput.end())
       {
-        const ptrdiff_t mismatch_index = std::distance(movInput.begin(), result.first);
+        const ptrdiff_t mismatch_index = std::distance(movInput.begin(), mismatch_result.in1);
 
         // this is a "you did something wrong" alert for the user's benefit.
         // we'll try to say what's going on in excruciating detail, otherwise the user might not
