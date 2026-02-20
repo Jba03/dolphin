@@ -26,8 +26,10 @@
 #include "Common/CPUDetect.h"
 #include "Common/CommonPaths.h"
 #include "Common/CommonTypes.h"
+#include "Common/ExternalTool.h"
 #include "Common/FatFsUtil.h"
 #include "Common/FileUtil.h"
+#include "Common/FileSearch.h"
 #include "Common/Logging/Log.h"
 #include "Common/MsgHandler.h"
 #include "Common/OneShotEvent.h"
@@ -288,6 +290,9 @@ void Stop(Core::System& system)  // - Hammertime!
   // Stop the CPU
   INFO_LOG_FMT(CONSOLE, "{}", StopMessage(true, "Stop CPU"));
   system.GetCPU().Stop();
+  
+  // Unload all external tools
+  Common::ExternalTools.clear();
 }
 
 void DeclareAsCPUThread()
@@ -383,6 +388,26 @@ static void CpuThread(Core::System& system, const std::optional<std::string>& sa
     }
   }
 
+//  std::string libraries_dir = Config::Get(Config::MAIN_EXTERNAL_TOOLS_PATH);
+//#if defined(_WIN32)
+//  std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".dll"});
+//#elif defined(__APPLE__)
+//  std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".dylib"});
+//#else
+//  std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".so"});
+//#endif
+//    
+//  for (const auto& file : files)
+//  {
+//    auto instance = std::make_unique<Common::ExternalTool>(file);
+//    Common::ExternalTools.push_back(std::move(instance));
+//  }
+    
+  for (auto& tool : Common::ExternalTools)
+  {
+    tool->SendMessage(Common::ExternalTool::MessageType::OnLoad);
+  }
+  
   // Enter CPU run loop. When we leave it - we are done.
   system.GetCPU().Run();
 

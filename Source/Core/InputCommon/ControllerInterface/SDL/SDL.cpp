@@ -6,6 +6,7 @@
 #include <span>
 #include <thread>
 #include <vector>
+#include <unordered_set>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -45,6 +46,7 @@ private:
   Uint32 m_stop_event_type;
   Uint32 m_populate_event_type;
   std::thread m_hotplug_thread;
+  std::atomic<bool> m_stop_requested{false};
 };
 
 std::unique_ptr<ciface::InputBackend> CreateInputBackend(ControllerInterface* controller_interface)
@@ -164,64 +166,74 @@ InputBackend::InputBackend(ControllerInterface* controller_interface)
   //  and ControllerInterface isn't prepared for SDL to spontaneously re-initialize itself.
   SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE, is_gc_adapter_configured ? "0" : "1");
 
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK |
+                         SDL_INIT_GAMEPAD |
+                         SDL_INIT_HAPTIC))
+  {
+    ERROR_LOG_FMT(CONTROLLERINTERFACE, "SDL init failed");
+    return;
+  }
+  
   m_hotplug_thread = std::thread([this] {
     Common::SetCurrentThreadName("SDL Hotplug Thread");
 
-    Common::ScopeGuard quit_guard([] {
-      // TODO: there seems to be some sort of memory leak with SDL, quit isn't freeing everything up
-      SDL_Quit();
-    });
+   
+
+    std::unordered_set<SDL_JoystickID> known;
+
+    auto scan_devices = [&]{
+      int count = 0;
+      SDL_JoystickID* ids = SDL_GetJoysticks(&count);
+
+      std::unordered_set<SDL_JoystickID> current(ids, ids + count);
+      SDL_free(ids);
+
+      // Added devices
+      for (auto id : current)
+      {
+        if (!known.contains(id))
+          OpenAndAddDevice(id);
+      }
+
+      // Removed devices
+      for (auto id : known)
+      {
+        if (!current.contains(id))
+        {
+          GetControllerInterface().RemoveDevice([&](const auto* device) {
+            return device->GetSource() == "SDL" &&
+                static_cast<const Gamepad*>(device)->GetSDLInstanceID() == id;
+          });
+        }
+      }
+
+      known = std::move(current);
+    };
+
+    scan_devices();
+    m_init_event.Set();
+
+    while (!m_stop_requested)
     {
-      Common::ScopeGuard init_guard([this] { m_init_event.Set(); });
+      SDL_UpdateJoysticks();
+      SDL_UpdateGamepads();
 
-      if (!SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC | SDL_INIT_GAMEPAD))
-      {
-        ERROR_LOG_FMT(CONTROLLERINTERFACE, "SDL failed to initialize");
-        return;
-      }
+      scan_devices();
 
-      const Uint32 custom_events_start = SDL_RegisterEvents(2);
-      if (custom_events_start == static_cast<Uint32>(-1))
-      {
-        ERROR_LOG_FMT(CONTROLLERINTERFACE, "SDL failed to register custom events");
-        return;
-      }
-      m_stop_event_type = custom_events_start;
-      m_populate_event_type = custom_events_start + 1;
-
-      // Drain all of the events and add the initial joysticks before returning. Otherwise, the
-      // individual joystick events as well as the custom populate event will be handled _after_
-      // ControllerInterface::Init/RefreshDevices has cleared its list of devices, resulting in
-      // duplicate devices. Adding devices will actually "fail" here, as the ControllerInterface
-      // hasn't finished initializing yet.
-      SDL_Event e;
-      while (SDL_PollEvent(&e))
-      {
-        if (!HandleEventAndContinue(e))
-          return;
-      }
-    }
-
-    SDL_Event e;
-    while (SDL_WaitEvent(&e))
-    {
-      if (!HandleEventAndContinue(e))
-        return;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   });
+
 
   m_init_event.Wait();
 }
 
 InputBackend::~InputBackend()
 {
-  if (!m_hotplug_thread.joinable())
-    return;
+  m_stop_requested = true;
 
-  SDL_Event stop_event{m_stop_event_type};
-  SDL_PushEvent(&stop_event);
-
-  m_hotplug_thread.join();
+  if (m_hotplug_thread.joinable())
+    m_hotplug_thread.join();
 }
 
 void InputBackend::PopulateDevices()

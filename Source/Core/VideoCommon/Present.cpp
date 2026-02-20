@@ -4,6 +4,7 @@
 #include "VideoCommon/Present.h"
 
 #include "Common/ChunkFile.h"
+#include "Common/ExternalTool.h"
 #include "Core/Config/GraphicsSettings.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/CoreTiming.h"
@@ -23,6 +24,8 @@
 #include "VideoCommon/VideoConfig.h"
 #include "VideoCommon/VideoEvents.h"
 #include "VideoCommon/Widescreen.h"
+
+#include <imgui.h>
 
 std::unique_ptr<VideoCommon::Presenter> g_presenter;
 
@@ -253,6 +256,11 @@ void Presenter::SetNextSwapEstimatedTime(u64 ticks, TimePoint host_time)
 {
   m_next_swap_estimated_ticks = ticks;
   m_next_swap_estimated_time = host_time;
+}
+
+void Presenter::SetMouseCursorCallback(std::function<void(MouseCursorID)> f)
+{
+  m_onscreen_ui->SetMouseCursorCallback(f);
 }
 
 void Presenter::ProcessFrameDumping(u64 ticks) const
@@ -891,6 +899,14 @@ void Presenter::Present(PresentInfo* present_info)
 
   if (m_onscreen_ui)
   {
+    for (auto& tool : Common::ExternalTools)
+    {
+      ImGuiContext *ctx = ImGui::GetCurrentContext();
+      tool->SendMessage(Common::ExternalTool::MessageType::OnFrame, (void*)ctx);
+      if (m_xfb_entry)
+        tool->SendMessage(Common::ExternalTool::MessageType::FrameTexture, (void*)m_xfb_entry->texture.get());
+    }
+    
     m_onscreen_ui->Finalize();
     if (backbuffer_bound)
       m_onscreen_ui->DrawImGui();
@@ -977,6 +993,12 @@ void Presenter::SetMousePress(u32 button_mask)
 {
   if (m_onscreen_ui)
     m_onscreen_ui->SetMousePress(button_mask);
+}
+
+void Presenter::SetMouseWheel(float x, float y)
+{
+  if (m_onscreen_ui)
+    m_onscreen_ui->SetMouseWheel(x, y);
 }
 
 void Presenter::DoState(PointerWrap& p)

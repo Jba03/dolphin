@@ -61,6 +61,8 @@ add_library(common
   EnumFormatter.h
   EnumMap.h
   Event.h
+  ExternalTool.cpp
+  ExternalTool.h
   FatFsUtil.cpp
   FatFsUtil.h
   FileSearch.cpp

@@ -100,7 +100,8 @@ void GenericLogFmt(LogLevel level, LogType type, const char* file, int line, con
                 "too many arguments?");
 
 #if FMT_VERSION >= 110000
-  auto&& format_str = fmt::format_string<Args...>(format);
+  //auto&& format_str = fmt::format_string<Args...>(format);
+  auto&& format_str = format;
 #else
   auto&& format_str = format;
 #endif

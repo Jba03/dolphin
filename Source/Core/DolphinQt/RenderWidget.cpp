@@ -30,6 +30,7 @@
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 
 #include "VideoCommon/Present.h"
+#include "VideoCommon/OnScreenUI.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -59,7 +60,29 @@ RenderWidget::RenderWidget(QWidget* parent) : QWidget(parent)
 
   connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [this](Core::State state) {
     if (state == Core::State::Running)
+    {
       SetPresenterKeyMap();
+     
+      g_presenter->SetMouseCursorCallback([&](VideoCommon::MouseCursorID cursor)
+      {
+        switch (cursor)
+        {
+          case VideoCommon::MouseCursor::None: setCursor(Qt::BlankCursor); break;
+          case VideoCommon::MouseCursor::Arrow: setCursor(Qt::ArrowCursor); break;
+          case VideoCommon::MouseCursor::TextInput: setCursor(Qt::IBeamCursor); break;
+          case VideoCommon::MouseCursor::ResizeAll: setCursor(Qt::SizeAllCursor); break;
+          case VideoCommon::MouseCursor::ResizeNS: setCursor(Qt::SizeVerCursor); break;
+          case VideoCommon::MouseCursor::ResizeEW: setCursor(Qt::SizeHorCursor); break;
+          case VideoCommon::MouseCursor::ResizeNESW: setCursor(Qt::SizeBDiagCursor); break;
+          case VideoCommon::MouseCursor::ResizeNWSE: setCursor(Qt::SizeFDiagCursor); break;
+          case VideoCommon::MouseCursor::Hand: setCursor(Qt::PointingHandCursor); break;
+          case VideoCommon::MouseCursor::Wait: setCursor(Qt::WaitCursor); break;
+          case VideoCommon::MouseCursor::Progress: setCursor(Qt::BusyCursor); break;
+          case VideoCommon::MouseCursor::NotAllowed: setCursor(Qt::ForbiddenCursor); break;
+        }
+      });
+      
+    }
   });
 
   // We have to use Qt::DirectConnection here because we don't want those signals to get queued
@@ -398,7 +421,7 @@ bool RenderWidget::event(QEvent* event)
     // Unhide on movement
     if (Settings::Instance().GetCursorVisibility() == Config::ShowCursor::OnMovement)
     {
-      setCursor(Qt::ArrowCursor);
+//      setCursor(cursor().shape());
       m_mouse_timer->start(MOUSE_HIDE_DELAY);
     }
     break;
@@ -555,6 +578,15 @@ void RenderWidget::PassEventToPresenter(const QEvent* event)
     float y = static_cast<const QMouseEvent*>(event)->pos().y() * scale;
 
     g_presenter->SetMousePos(x, y);
+  }
+  break;
+      
+  case QEvent::Wheel:
+  {
+    float x = static_cast<const QWheelEvent*>(event)->pixelDelta().x() * 0.05f;
+    float y = static_cast<const QWheelEvent*>(event)->pixelDelta().y() * 0.05f;
+    
+    g_presenter->SetMouseWheel(x, y);
   }
   break;
 

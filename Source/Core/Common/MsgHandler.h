@@ -41,7 +41,8 @@ bool MsgAlertFmt(bool yes_no, MsgType style, Common::Log::LogType log_type, cons
                 "too many arguments?");
 #if FMT_VERSION >= 110000
   static_assert(std::is_base_of_v<fmt::detail::compile_string, S>);
-  auto&& format_str = fmt::format_string<Args...>(format);
+  //auto&& format_str = fmt::format_string<Args...>(format);
+  std::string format_str = "test";
 #elif FMT_VERSION >= 90000
   static_assert(fmt::detail::is_compile_string<S>::value);
   auto&& format_str = format;

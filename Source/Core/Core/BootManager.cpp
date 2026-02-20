@@ -21,7 +21,9 @@
 
 #include "Common/CommonTypes.h"
 #include "Common/Config/Config.h"
+#include "Common/ExternalTool.h"
 #include "Common/FileUtil.h"
+#include "Common/FileSearch.h"
 
 #include "Core/AchievementManager.h"
 #include "Core/Boot/Boot.h"
@@ -170,7 +172,32 @@ bool BootCore(Core::System& system, std::unique_ptr<BootParameters> boot,
             std::move(boot->boot_session_data)),
         wsi);
   }
-  return Core::Init(system, std::move(boot), wsi);
+  
+  bool ret = Core::Init(system, std::move(boot), wsi);
+  if (ret)
+  {
+    std::string libraries_dir = Config::Get(Config::MAIN_EXTERNAL_TOOLS_PATH);
+#if defined(_WIN32)
+    std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".dll"});
+#elif defined(__APPLE__)
+    std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".dylib"});
+#else
+    std::vector<std::string> files = Common::DoFileSearch({libraries_dir}, {".so"});
+#endif
+    
+    for (const auto& file : files)
+    {
+      auto instance = std::make_unique<Common::ExternalTool>(file);
+      Common::ExternalTools.push_back(std::move(instance));
+    }
+    
+    for (auto& tool : Common::ExternalTools)
+    {
+      tool->SendMessage(Common::ExternalTool::MessageType::OnLoad);
+    }
+  }
+  
+  return ret;
 }
 
 // SYSCONF can be modified during emulation by the user and internally, which makes it

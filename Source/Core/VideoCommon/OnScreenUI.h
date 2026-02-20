@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -19,6 +20,23 @@ struct ImTextureData;
 
 namespace VideoCommon
 {
+
+enum MouseCursor : int
+{
+  None = -1,
+  Arrow = 0,
+  TextInput,
+  ResizeAll,
+  ResizeNS,
+  ResizeEW,
+  ResizeNESW,
+  ResizeNWSE,
+  Hand,
+  Wait,
+  Progress,
+  NotAllowed,
+};
+
 // OnScreenUI handles all the ImGui rendering.
 class OnScreenUI
 {
@@ -59,7 +77,11 @@ public:
   void SetKey(u32 key, bool is_down, const char* chars);
   void SetMousePos(float x, float y);
   void SetMousePress(u32 button_mask);
+  void SetMouseWheel(float x, float y);
 
+  using MouseCursorCallback = std::function<void(MouseCursor)>;
+  void SetMouseCursorCallback(const MouseCursorCallback&);
+  
 private:
   void DrawDebugText();
   void DrawChallengesAndLeaderboards();
@@ -72,7 +94,9 @@ private:
   std::map<u32, int> m_dolphin_to_imgui_map;
   std::mutex m_imgui_mutex;
   u64 m_imgui_last_frame_time = 0;
-
+  MouseCursor m_imgui_last_cursor = MouseCursor::Arrow;
+  MouseCursorCallback m_update_mousecursor;
+  
   u32 m_backbuffer_width = 1;
   u32 m_backbuffer_height = 1;
   float m_backbuffer_scale = 1.0;

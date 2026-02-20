@@ -24,6 +24,7 @@ namespace VideoCommon
 {
 class OnScreenUI;
 class PostProcessing;
+typedef int MouseCursorID;
 
 // Presenter is a class that deals with putting the final XFB on the screen.
 // It also handles the ImGui UI and post-processing.
@@ -93,13 +94,16 @@ public:
   void SetKey(u32 key, bool is_down, const char* chars);
   void SetMousePos(float x, float y);
   void SetMousePress(u32 button_mask);
-
+  void SetMouseWheel(float x, float y);
+  
   int FrameCount() const { return m_frame_count; }
 
   void DoState(PointerWrap& p);
 
   const MathUtil::Rectangle<int>& GetTargetRectangle() const { return m_target_rectangle; }
 
+  void SetMouseCursorCallback(std::function<void(MouseCursorID)> f);
+  
 private:
   // Fetches the XFB texture from the texture cache.
   // Returns true the contents have changed since last time
@@ -155,7 +159,8 @@ private:
 
   std::unique_ptr<VideoCommon::PostProcessing> m_post_processor;
   std::unique_ptr<VideoCommon::OnScreenUI> m_onscreen_ui;
-
+  std::function<void(MouseCursorID)> m_set_mousecursor;
+  
   u64 m_frame_count = 0;
   u64 m_present_count = 0;
 

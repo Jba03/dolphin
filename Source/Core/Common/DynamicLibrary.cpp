@@ -84,6 +84,12 @@ bool DynamicLibrary::Open(const char* filename)
 #else
   m_handle = dlopen(filename, RTLD_NOW);
 #endif
+  
+  if (!m_handle)
+  {
+    printf("Failed to load library: %s\n", dlerror());
+  }
+  
   return m_handle != nullptr;
 }
 

@@ -90,15 +90,16 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
     font_exists = File::Exists(file);
   }
 
-  if (font_exists)
-  {
-    io.Fonts->Clear();
-    io.Fonts->AddFontFromFileTTF(file.c_str());
-  }
+//  if (font_exists)
+//  {
+//    io.Fonts->Clear();
+//    io.Fonts->AddFontFromFileTTF(file.c_str());
+//  }
 
   // Setup new font management behavior
   io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasVtxOffset;
-
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+  
   if (!RecompileImGuiPipeline())
     return false;
 
@@ -215,7 +216,7 @@ void OnScreenUI::DrawImGui()
   ImDrawData* draw_data = ImGui::GetDrawData();
   if (!draw_data)
     return;
-
+  
   g_gfx->SetViewport(0.0f, 0.0f, static_cast<float>(m_backbuffer_width),
                      static_cast<float>(m_backbuffer_height), 0.0f, 1.0f);
 
@@ -229,7 +230,7 @@ void OnScreenUI::DrawImGui()
 
   // Set up common state for drawing.
   g_gfx->SetPipeline(m_imgui_pipeline.get());
-  g_gfx->SetSamplerState(0, RenderState::GetPointSamplerState());
+  g_gfx->SetSamplerState(0, RenderState::GetLinearSamplerState());
   g_vertex_manager->UploadUtilityUniforms(&ubo, sizeof(ubo));
 
   for (int i = 0; i < draw_data->CmdListsCount; i++)
@@ -270,6 +271,13 @@ void OnScreenUI::DrawImGui()
   g_gfx->SetScissorRect(g_gfx->ConvertFramebufferRectangle(
       MathUtil::Rectangle<int>(0, 0, m_backbuffer_width, m_backbuffer_height),
       g_gfx->GetCurrentFramebuffer()));
+  
+  // Update the current mouse cursor
+  ImGuiMouseCursor cursor = ImGui::GetMouseCursor();
+  if (m_update_mousecursor && m_imgui_last_cursor != cursor)
+    m_update_mousecursor(static_cast<MouseCursor>(cursor));
+    
+  m_imgui_last_cursor = static_cast<MouseCursor>(cursor);
 }
 
 // Create On-Screen-Messages
@@ -541,6 +549,7 @@ void OnScreenUI::SetScale(float backbuffer_scale)
 
   m_backbuffer_scale = backbuffer_scale;
 }
+
 void OnScreenUI::SetKeyMap(const DolphinKeyMap& key_map)
 {
   static constexpr DolphinKeyMap dolphin_to_imgui_map = {
@@ -582,8 +591,15 @@ void OnScreenUI::SetKey(u32 key, bool is_down, const char* chars)
 void OnScreenUI::SetMousePos(float x, float y)
 {
   auto lock = GetImGuiLock();
-
+  
   ImGui::GetIO().AddMousePosEvent(x, y);
+}
+
+void OnScreenUI::SetMouseWheel(float x, float y)
+{
+  auto lock = GetImGuiLock();
+
+  ImGui::GetIO().AddMouseWheelEvent(x, y);
 }
 
 void OnScreenUI::SetMousePress(u32 button_mask)
@@ -594,6 +610,11 @@ void OnScreenUI::SetMousePress(u32 button_mask)
   {
     ImGui::GetIO().AddMouseButtonEvent(static_cast<int>(i), (button_mask & (1u << i)) != 0);
   }
+}
+
+void OnScreenUI::SetMouseCursorCallback(const MouseCursorCallback& update)
+{
+  m_update_mousecursor = update;
 }
 
 }  // namespace VideoCommon
