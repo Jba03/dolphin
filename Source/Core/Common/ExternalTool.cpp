@@ -75,13 +75,13 @@ static bool DoLoadState(int slot)
 static bool DoSaveStateToBuffer(Common::UniqueBuffer<u8>& buffer)
 {
   auto& system = Core::System::GetInstance();
-  State::SaveToBuffer(system, buffer);
+//  State::Save(system, buffer);
 }
 
 static bool DoLoadStateFromBuffer(Common::UniqueBuffer<u8>& buffer)
 {
   auto& system = Core::System::GetInstance();
-  State::LoadFromBuffer(system, buffer);
+//  State::LoadFromBuffer(system, buffer);
 }
 
 static bool Reload(void)
