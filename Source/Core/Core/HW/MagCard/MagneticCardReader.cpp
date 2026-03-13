@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <numeric>
 
-#include "Common/BitUtils.h"
 #include "Common/DirectIOFile.h"
 #include "Common/FileUtil.h"
 #include "Common/Lazy.h"
@@ -21,12 +20,6 @@
 
 namespace
 {
-
-constexpr std::string GetHexDump(const auto& data)
-{
-  const auto u8_span = Common::AsU8Span(data);
-  return HexDump(u8_span.data(), u8_span.size());
-}
 
 void AppendRange(auto* container, const auto& range)
 {
@@ -549,32 +542,43 @@ void MagneticCardReader::ReadCardFile()
       track_data.reset();
       break;
     }
-  }
 
-  DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "ReadCard: 0:{} 1:{} 2:{}", GetHexDump(m_card_data[0]),
-                GetHexDump(m_card_data[1]), GetHexDump(m_card_data[2]));
+    DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "ReadCardFile: track:{} data:{}", track_num,
+                  HexDump(*track_data));
+  }
 }
 
 void MagneticCardReader::WriteCardFile()
 {
-  // Note: Creating empty upsets games when reinserting them later.
+  // Note: Creating empty cards upsets games when reinserting them later.
   // Games expect to dispense their own blank cards, not have such cards inserted.
   // We only write files when the game itself writes, so this won't happen.
 
   NOTICE_LOG_FMT(SERIALINTERFACE_CARD, "Writing card data to: {}", m_card_settings->card_name);
-  DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "WriteCard: 0:{} 1:{} 2:{}", GetHexDump(m_card_data[0]),
-                GetHexDump(m_card_data[1]), GetHexDump(m_card_data[2]));
 
-  auto full_path = m_card_settings->card_path + m_card_settings->card_name;
+  const auto full_path = m_card_settings->card_path + m_card_settings->card_name;
 
   File::DirectIOFile file{full_path, File::AccessMode::Write};
 
-  for (auto& track_data : m_card_data)
+  for (std::size_t track_num = 0; track_num != m_card_data.size(); ++track_num)
   {
-    if (track_data.has_value() && !file.Write(*track_data))
+    const auto& track_data = m_card_data[track_num];
+
+    if (!track_data.has_value())
+    {
+      DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "WriteCardFile: Skipping empty track:{}", track_num);
+      continue;
+    }
+
+    DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "WriteCardFile: track:{} data:{}", track_num,
+                  HexDump(*track_data));
+
+    // FYI: Our simple file format assumes contiguously filled tracks.
+    // I don't think games ever just skip the 2nd track,
+    //  but we better write out every used tracks at the correct offset in case they do.
+    if (!file.OffsetWrite(track_num * TRACK_SIZE, *track_data))
     {
       ERROR_LOG_FMT(SERIALINTERFACE_CARD, "File write failed.");
-      break;
     }
   }
 }
@@ -593,11 +597,15 @@ void MagneticCardReader::SetSError(S error_code)
   FinishCommand();
 }
 
-void MagneticCardReader::Process(std::vector<u8>* read, std::vector<u8>* write)
+void MagneticCardReader::Update()
 {
-  while (!read->empty())
+  while (true)
   {
-    const u8 first_byte = read->front();
+    const auto read = GetRxByteSpan();
+    if (read.empty())
+      break;
+
+    const u8 first_byte = read.front();
     if (first_byte == ENQUIRY)
     {
       // ENQUIRY
@@ -613,16 +621,16 @@ void MagneticCardReader::Process(std::vector<u8>* read, std::vector<u8>* write)
       StepStateMachine(elapsed_time);
       StepStatePerson(elapsed_time);
 
-      BuildPacket(*write);
+      BuildPacket();
 
-      read->erase(read->begin());  // TODO: SLOW !
+      ConsumeRxBytes(1);
       continue;
     }
 
     if (first_byte != START_OF_TEXT)
     {
       ERROR_LOG_FMT(SERIALINTERFACE_CARD, "Process: Unexpected {:02x}", first_byte);
-      read->erase(read->begin());  // TODO: SLOW !
+      ConsumeRxBytes(1);
       continue;
     }
 
@@ -630,31 +638,31 @@ void MagneticCardReader::Process(std::vector<u8>* read, std::vector<u8>* write)
     // This is a command packet. The next byte provides the size.
     // Upon read they ACK or NACK and start processing of a command.
 
-    if (read->size() < 2)
+    if (read.size() < 2)
       break;  // Wait for more data.
 
-    const std::size_t packet_size = (*read)[1];
-    if (packet_size > read->size() - 2)
+    const std::size_t packet_size = read[1];
+    if (packet_size > read.size() - 2)
       break;  // Wait for more data.
 
-    if (ReceivePacket(std::span{*read}.subspan(2, packet_size)))
+    if (ReceivePacket(read.subspan(2, packet_size)))
     {
       DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "Writing ACK");
-      write->emplace_back(ACK);
+      WriteTxByte(ACK);
     }
     else
     {
       WARN_LOG_FMT(SERIALINTERFACE_CARD, "Writing NACK");
-      write->emplace_back(NACK);
+      WriteTxByte(NACK);
     }
 
-    read->erase(read->begin(), read->begin() + packet_size + 2);  // TODO: SLOW !
+    ConsumeRxBytes(packet_size + 2);
   }
 }
 
 bool MagneticCardReader::ReceivePacket(std::span<const u8> packet)
 {
-  DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "ReceivePacket: {}", GetHexDump(packet));
+  DEBUG_LOG_FMT(SERIALINTERFACE_CARD, "ReceivePacket: {}", HexDump(packet));
 
   if (packet.size() < 6)
   {
@@ -854,42 +862,31 @@ void MagneticCardReader::StepStateMachine(DT elapsed_time)
     ++m_current_step;
 }
 
-void MagneticCardReader::BuildPacket(std::vector<u8>& write_buffer)
+void MagneticCardReader::BuildPacket()
 {
   // Header and footer add 6 bytes.
   const u8 payload_size = u8(m_command_payload.size() + 6);
-  // + START_OF_TEXT + the count byte
-  const auto total_write_size = payload_size + 2;
 
-  const auto prev_buffer_size = write_buffer.size();
-  write_buffer.resize(prev_buffer_size + total_write_size);
+  WriteTxByte(START_OF_TEXT);  // Not included in the checksum.
 
-  auto* out_ptr = write_buffer.data() + prev_buffer_size;
-  u8 packet_checksum = 0;
+  const auto lead_in = std::to_array<u8>({
+      payload_size,
+      GetCurrentCommand(),
+      GetPositionValue(),
+      u8(m_status.p),
+      u8(m_status.s),
+  });
+  WriteTxBytes(lead_in);
 
-  const auto write_and_checksum = [&](u8 value) {
-    *(out_ptr++) = value;
-    packet_checksum ^= value;
-  };
+  WriteTxBytes(m_command_payload);
 
-  // Write the header.
-  *(out_ptr++) = START_OF_TEXT;
-  write_and_checksum(payload_size);
-  write_and_checksum(GetCurrentCommand());
-  write_and_checksum(GetPositionValue());
-  write_and_checksum(u8(m_status.p));
-  write_and_checksum(u8(m_status.s));
+  WriteTxByte(END_OF_TEXT);
 
-  // Write the payload.
-  std::ranges::for_each(m_command_payload, write_and_checksum);
-
-  // Write the footer.
-  write_and_checksum(END_OF_TEXT);
-  *(out_ptr++) = packet_checksum;
-
-  DEBUG_LOG_FMT(
-      SERIALINTERFACE_CARD, "BuildPacket: {}",
-      GetHexDump(std::span{write_buffer}.subspan(write_buffer.size() - payload_size - 2)));
+  // Checksum is XOR of bytes after START_OF_TEXT.
+  const u8 packet_checksum = std::accumulate(lead_in.begin(), lead_in.end(), u8{}, std::bit_xor{}) ^
+                             std::accumulate(m_command_payload.begin(), m_command_payload.end(),
+                                             END_OF_TEXT, std::bit_xor{});
+  WriteTxByte(packet_checksum);
 }
 
 bool MagneticCardReader::IsRunningCommand() const
@@ -980,6 +977,8 @@ bool MagneticCardReader::IsReadyForCard()
 
 void MagneticCardReader::DoState(PointerWrap& p)
 {
+  SerialDevice::DoState(p);
+
   // Outgoing packet.
   p.Do(m_status);
   p.Do(m_current_command);
