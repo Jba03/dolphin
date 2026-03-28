@@ -44,6 +44,7 @@ const Info<PowerPC::CPUCore> MAIN_CPU_CORE{{System::Main, "Core", "CPUCore"},
                                            PowerPC::DefaultCPUCore()};
 const Info<bool> MAIN_JIT_FOLLOW_BRANCH{{System::Main, "Core", "JITFollowBranch"}, true};
 const Info<bool> MAIN_FASTMEM{{System::Main, "Core", "Fastmem"}, true};
+const Info<bool> MAIN_PAGE_TABLE_FASTMEM{{System::Main, "Core", "PageTableFastmem"}, true};
 const Info<bool> MAIN_FASTMEM_ARENA{{System::Main, "Core", "FastmemArena"}, true};
 const Info<bool> MAIN_LARGE_ENTRY_POINTS_MAP{{System::Main, "Core", "LargeEntryPointsMap"}, true};
 const Info<bool> MAIN_ACCURATE_CPU_CACHE{{System::Main, "Core", "AccurateCPUCache"}, false};
@@ -318,7 +319,7 @@ const Info<bool> MAIN_AUDIO_MUTED{{System::Main, "DSP", "Muted"}, false};
 const Info<bool> MAIN_AUDIO_MUTE_ON_DISABLED_SPEED_LIMIT{
     {System::Main, "DSP", "MuteOnDisabledSpeedLimit"}, false};
 #ifdef _WIN32
-const Info<std::string> MAIN_WASAPI_DEVICE{{System::Main, "DSP", "WASAPIDevice"}, "Default"};
+const Info<std::string> MAIN_WASAPI_DEVICE{{System::Main, "DSP", "WASAPIDevice"}, "default"};
 #endif
 
 bool ShouldUseDPL2Decoder()
