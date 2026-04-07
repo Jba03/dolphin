@@ -206,6 +206,7 @@ if (APPLE)
   PRIVATE
     ${APPKIT_LIBRARY}
     ${COREFOUNDATION_LIBRARY}
+    ${FOUNDATION_LIBRARY}
     ${IOK_LIBRARY}
   )
 elseif(WIN32)
@@ -241,6 +242,7 @@ elseif(WIN32)
   )
 elseif(APPLE)
   target_sources(common PRIVATE
+    CommonFuncsObjC.mm
     Logging/ConsoleListenerNix.cpp
     MemArenaDarwin.cpp
   )
