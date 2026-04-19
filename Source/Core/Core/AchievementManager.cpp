@@ -170,6 +170,8 @@ void AchievementManager::LoadGame(const DiscIO::Volume* volume)
     WARN_LOG_FMT(ACHIEVEMENTS, "Software format unsupported by AchievementManager.");
     if (rc_client_get_game_info(m_client))
     {
+      OSD::AddMessage("Unsupported media change; disabling achievements.", OSD::Duration::VERY_LONG,
+                      OSD::Color::RED);
       CloseGame();
     }
     else
@@ -1358,7 +1360,7 @@ u32 AchievementManager::MemoryPeeker(u32 address, u8* buffer, u32 num_bytes, rc_
 }
 
 void AchievementManager::FetchBadge(AchievementManager::Badge* badge, u32 badge_type,
-                                    const AchievementManager::BadgeNameFunction function,
+                                    AchievementManager::BadgeNameFunction function,
                                     UpdatedItems callback_data)
 {
   if (!m_client || !HasAPIToken())

@@ -219,7 +219,7 @@ extern const Info<int> MAIN_ISO_PATH_COUNT;
 extern const Info<std::string> MAIN_SKYLANDERS_PATH;
 extern const Info<std::string> MAIN_EXTERNAL_TOOLS_PATH;
 std::vector<std::string> GetIsoPaths();
-void SetIsoPaths(const std::vector<std::string>& paths);
+void SetIsoPaths(std::span<const std::string> paths);
 
 // Main.GBA
 
