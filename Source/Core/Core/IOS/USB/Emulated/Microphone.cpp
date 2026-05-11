@@ -36,8 +36,7 @@ Microphone::Microphone(const MicrophoneState& sampler, std::string worker_name)
 {
 }
 #else
-Microphone::Microphone(MicrophoneState sampler, std::string worker_name)
-    : m_sampler(std::move(sampler))
+Microphone::Microphone(const MicrophoneState& sampler, std::string worker_name) : m_sampler(sampler)
 {
 }
 #endif
@@ -57,7 +56,7 @@ void Microphone::StreamInit()
 {
 }
 
-void Microphone::StreamStart([[maybe_unused]] u32 sampling_rate)
+void Microphone::StreamStart(u32 /* sampling_rate */)
 {
 }
 
